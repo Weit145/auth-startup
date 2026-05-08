@@ -1,0 +1,15 @@
+.git
+.gitignore
+.dockerignore
+.env
+
+Dockerfile
+LICENSE
+pplog.env
+
+tmp/
+bin/
+dist/
+coverage.out
+
+*.log
