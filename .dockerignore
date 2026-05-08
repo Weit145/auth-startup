@@ -5,7 +5,6 @@
 
 Dockerfile
 LICENSE
-pplog.env
 
 tmp/
 bin/

@@ -4,6 +4,7 @@ WORKDIR /src
 
 COPY go.mod go.sum ./
 RUN go mod download
+RUN CGO_ENABLED=0 go install github.com/michurin/human-readable-json-logging/cmd/pplog@v0.0.0-20251207065006-861035fdcf92
 
 COPY . .
 RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /out/auth-startup ./cmd
@@ -17,6 +18,8 @@ RUN apk add --no-cache ca-certificates \
 	&& adduser -S -G app app
 
 COPY --from=builder /out/auth-startup /app/auth-startup
+COPY --from=builder /go/bin/pplog /usr/local/bin/pplog
+COPY pplog.env ./pplog.env
 
 ENV LOG_LEVEL=INFO
 
@@ -24,4 +27,4 @@ USER app
 
 EXPOSE 50051
 
-ENTRYPOINT ["/app/auth-startup"]
+ENTRYPOINT ["pplog", "/app/auth-startup"]
