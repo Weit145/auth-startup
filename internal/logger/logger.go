@@ -4,8 +4,6 @@ import (
 	"context"
 	"log/slog"
 	"os"
-
-	"github.com/google/uuid"
 )
 
 type HandlerMiddlware struct {
@@ -25,15 +23,15 @@ type keyType int
 const key = keyType(0)
 
 type logCtx struct {
-	ListID uuid.UUID
+	// ListID uuid.UUID
 }
 
 func (h *HandlerMiddlware) Handle(ctx context.Context, rec slog.Record) error {
-	if c, ok := ctx.Value(key).(logCtx); ok {
-		if c.ListID != uuid.Nil {
-			rec.Add("listID", c.ListID)
-		}
-	}
+	// if c, ok := ctx.Value(key).(logCtx); ok {
+	// 	if c.ListID != uuid.Nil {
+	// 		rec.Add("listID", c.ListID)
+	// 	}
+	// }
 	return h.next.Handle(ctx, rec)
 }
 
@@ -45,13 +43,13 @@ func (h *HandlerMiddlware) WithGroup(name string) slog.Handler {
 	return &HandlerMiddlware{next: h.next.WithGroup(name)}
 }
 
-func WithLogListID(ctx context.Context, listID uuid.UUID) context.Context {
-	if c, ok := ctx.Value(key).(logCtx); ok {
-		c.ListID = listID
-		return context.WithValue(ctx, key, c)
-	}
-	return context.WithValue(ctx, key, logCtx{ListID: listID})
-}
+// func WithLogListID(ctx context.Context, listID uuid.UUID) context.Context {
+// 	if c, ok := ctx.Value(key).(logCtx); ok {
+// 		c.ListID = listID
+// 		return context.WithValue(ctx, key, c)
+// 	}
+// 	return context.WithValue(ctx, key, logCtx{ListID: listID})
+// }
 
 func InitLogging(levelString string) {
 	level := slog.LevelInfo
