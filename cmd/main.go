@@ -21,7 +21,7 @@ import (
 
 func main() {
 	if err := run(); err != nil {
-		slog.Error("service failed", slog.Any("error", err))
+		slog.ErrorContext(logger.ErrorCtx(context.Background(), err), "service failed", slog.Any("error", err))
 		os.Exit(1)
 	}
 }
@@ -42,16 +42,16 @@ func run() error {
 	//Init storage
 	repo, err := postgres.NewRepository(ctx, cfg.DB.Address)
 	for i := 1; i <= 10 && err != nil; i++ {
-		slog.Error("Storage no connect", "try", i, slog.Any("error", err))
+		slog.ErrorContext(logger.ErrorCtx(ctx, err), "Storage no connect", "try", i, slog.Any("error", err))
 		select {
 		case <-ctx.Done():
-			return ctx.Err()
+			return logger.WrapError(ctx, ctx.Err())
 		case <-time.After(time.Second * 2):
 		}
 		repo, err = postgres.NewRepository(ctx, cfg.DB.Address)
 	}
 	if err != nil {
-		return fmt.Errorf("connect storage: %w", err)
+		return logger.WrapError(ctx, fmt.Errorf("connect storage: %w", err))
 	}
 	defer repo.Close()
 	slog.Info("Init storage")
@@ -62,7 +62,7 @@ func run() error {
 	//Init grpc server
 	lis, err := net.Listen("tcp", cfg.GRPC.AuthAddr)
 	if err != nil {
-		return fmt.Errorf("listen grpc: %w", err)
+		return logger.WrapError(ctx, fmt.Errorf("listen grpc: %w", err))
 	}
 	defer lis.Close()
 
@@ -83,7 +83,7 @@ func run() error {
 		grpcServer.GracefulStop()
 	case err := <-serverErr:
 		grpcServer.GracefulStop()
-		return fmt.Errorf("serve grpc: %w", err)
+		return logger.WrapError(ctx, fmt.Errorf("serve grpc: %w", err))
 	}
 
 	return nil

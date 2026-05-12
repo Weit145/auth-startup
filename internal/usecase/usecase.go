@@ -3,6 +3,7 @@ package usecase
 import (
 	"context"
 
+	"github.com/Weit145/auth-startup/internal/logger"
 	"github.com/Weit145/auth-startup/internal/repositories/storage"
 )
 
@@ -21,5 +22,8 @@ func NewServices(repo storage.Repositories) *Service {
 }
 
 func (s *Service) CheckHealth(ctx context.Context) error {
-	return s.repo.CheckHealth(ctx)
+	if err := s.repo.CheckHealth(ctx); err != nil {
+		return logger.WrapError(ctx, err)
+	}
+	return nil
 }

@@ -32,3 +32,7 @@ func (s *Server) CheckHealth(ctx context.Context, req *pb.Empty) (*pb.Health, er
 	resp := pb.Health{Health: true}
 	return &resp, nil
 }
+
+func (s *Server) Register(ctx context.Context, req *pb.RegisterRequest) (*pb.AuthResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method Register not implemented")
+}

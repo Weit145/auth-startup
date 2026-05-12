@@ -2,8 +2,10 @@ package logger
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"os"
+	"strings"
 )
 
 type HandlerMiddlware struct {
@@ -51,9 +53,44 @@ func (h *HandlerMiddlware) WithGroup(name string) slog.Handler {
 // 	return context.WithValue(ctx, key, logCtx{ListID: listID})
 // }
 
+type errorWithLogCtx struct {
+	next error
+	ctx  logCtx
+}
+
+func (e *errorWithLogCtx) Error() string {
+	return e.next.Error()
+}
+
+func (e *errorWithLogCtx) Unwrap() error {
+	return e.next
+}
+
+func WrapError(ctx context.Context, err error) error {
+	if err == nil {
+		return nil
+	}
+	c := logCtx{}
+	if x, ok := ctx.Value(key).(logCtx); ok {
+		c = x
+	}
+	return &errorWithLogCtx{
+		next: err,
+		ctx:  c,
+	}
+}
+
+func ErrorCtx(ctx context.Context, err error) context.Context {
+	var e *errorWithLogCtx
+	if errors.As(err, &e) {
+		return context.WithValue(ctx, key, e.ctx)
+	}
+	return ctx
+}
+
 func InitLogging(levelString string) {
 	level := slog.LevelInfo
-	switch levelString {
+	switch strings.ToUpper(strings.TrimSpace(levelString)) {
 	case "DEBUG":
 		level = slog.LevelDebug
 	case "INFO":
