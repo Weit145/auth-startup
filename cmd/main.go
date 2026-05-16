@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/Weit145/auth-startup/internal/config"
+	"github.com/Weit145/auth-startup/internal/infrastructure"
 	"github.com/Weit145/auth-startup/internal/logger"
 	"github.com/Weit145/auth-startup/internal/repositories/storage/postgres"
 	v1 "github.com/Weit145/auth-startup/internal/transport/grpc/v1"
@@ -56,8 +57,12 @@ func run() error {
 	defer repo.Close()
 	slog.Info("Init storage")
 
+	//Init infrastructure
+	slog.Info("Init infrastructure")
+	infrastructure := infrastructure.NewInfrastructure(&cfg)
+
 	//Init usecase
-	ser := usecase.NewServices(repo)
+	ser := usecase.NewServices(repo, infrastructure)
 
 	//Init grpc server
 	lis, err := net.Listen("tcp", cfg.GRPC.AuthAddr)

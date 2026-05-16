@@ -16,8 +16,9 @@ type Repository struct {
 
 func NewRepository(ctx context.Context, dsn string) (*Repository, error) {
 	if strings.TrimSpace(dsn) == "" {
-		slog.Error("Failed dsn")
-		return nil, logger.WrapError(ctx, fmt.Errorf("database dsn is empty"))
+		err := fmt.Errorf("database dsn is empty")
+		slog.ErrorContext(ctx, "database dsn is empty", slog.Any("error", err))
+		return nil, logger.WrapError(ctx, err)
 	}
 
 	cfg, err := pgxpool.ParseConfig(dsn)

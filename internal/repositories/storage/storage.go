@@ -1,7 +1,13 @@
 package storage
 
-import "context"
+import (
+	"context"
+	"time"
+
+	"github.com/Weit145/auth-startup/internal/domain"
+)
 
 type Repositories interface {
 	CheckHealth(ctx context.Context) error
+	CreateUser(ctx context.Context, user domain.User, passwordHash, refreshTokenHash string, refreshTokenExpiresAt time.Time) (domain.User, error)
 }

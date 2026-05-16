@@ -25,15 +25,19 @@ type keyType int
 const key = keyType(0)
 
 type logCtx struct {
-	// ListID uuid.UUID
+	name  string
+	email string
 }
 
 func (h *HandlerMiddlware) Handle(ctx context.Context, rec slog.Record) error {
-	// if c, ok := ctx.Value(key).(logCtx); ok {
-	// 	if c.ListID != uuid.Nil {
-	// 		rec.Add("listID", c.ListID)
-	// 	}
-	// }
+	if c, ok := ctx.Value(key).(logCtx); ok {
+		if c.email != "" {
+			rec.Add("email", c.email)
+		}
+		if c.name != "" {
+			rec.Add("name", c.name)
+		}
+	}
 	return h.next.Handle(ctx, rec)
 }
 
@@ -45,13 +49,27 @@ func (h *HandlerMiddlware) WithGroup(name string) slog.Handler {
 	return &HandlerMiddlware{next: h.next.WithGroup(name)}
 }
 
-// func WithLogListID(ctx context.Context, listID uuid.UUID) context.Context {
-// 	if c, ok := ctx.Value(key).(logCtx); ok {
-// 		c.ListID = listID
-// 		return context.WithValue(ctx, key, c)
-// 	}
-// 	return context.WithValue(ctx, key, logCtx{ListID: listID})
-// }
+func WithLogEmail(ctx context.Context, email string) context.Context {
+	email = strings.TrimSpace(email)
+
+	if len(email) > 5 {
+		email = email[:5] + strings.Repeat("*", len(email)-5)
+	}
+	if c, ok := ctx.Value(key).(logCtx); ok {
+		c.email = email
+		return context.WithValue(ctx, key, c)
+	}
+	return context.WithValue(ctx, key, logCtx{email: email})
+}
+
+func WithLogName(ctx context.Context, name string) context.Context {
+	name = strings.TrimSpace(name)
+	if c, ok := ctx.Value(key).(logCtx); ok {
+		c.name = name
+		return context.WithValue(ctx, key, c)
+	}
+	return context.WithValue(ctx, key, logCtx{name: name})
+}
 
 type errorWithLogCtx struct {
 	next error

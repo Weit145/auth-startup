@@ -11,6 +11,12 @@ type Config struct {
 	Log  Log  `envPrefix:""`
 	GRPC GRPC `envPrefix:""`
 	DB   DB   `envPrefix:""`
+	JWT  JWT  `envPrefix:""`
+}
+
+type JWT struct {
+	Secret        string `env:"JWT_SECRET" envDefault:"mysecretkey"`
+	RefreshSecret string `env:"JWT_REFRESH_SECRET" envDefault:"myrefreshsecretkey"`
 }
 
 type Log struct {
@@ -52,6 +58,10 @@ func InitConfig() Config {
 		},
 		GRPC: GRPC{
 			AuthAddr: envOrDefault(":50051", "GRPC_AUTH_ADDR", "AUTH_GRPC_ADDR"),
+		},
+		JWT: JWT{
+			Secret:        envOrDefault("mysecretkey", "JWT_SECRET"),
+			RefreshSecret: envOrDefault("myrefreshsecretkey", "JWT_REFRESH_SECRET"),
 		},
 	}
 	return cfg
