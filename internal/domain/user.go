@@ -7,10 +7,11 @@ import (
 )
 
 type User struct {
-	id    uuid.UUID
-	email string
-	name  string
-	role  string
+	id           uuid.UUID
+	passwordHash string
+	email        string
+	name         string
+	role         string
 }
 
 func NewUser(email, name string) (*User, error) {
@@ -54,6 +55,10 @@ func NewAdminUser(email, name string) (*User, error) {
 }
 
 func UserFromID(id uuid.UUID, email, name, role string) (*User, error) {
+	return UserFromIDWithPasswordHash(id, email, "", name, role)
+}
+
+func UserFromIDWithPasswordHash(id uuid.UUID, email, passwordHash, name, role string) (*User, error) {
 
 	if id == uuid.Nil {
 		return nil, fmt.Errorf("id cannot be empty")
@@ -72,15 +77,20 @@ func UserFromID(id uuid.UUID, email, name, role string) (*User, error) {
 	}
 
 	return &User{
-		id:    id,
-		email: email,
-		name:  name,
-		role:  role,
+		id:           id,
+		passwordHash: passwordHash,
+		email:        email,
+		name:         name,
+		role:         role,
 	}, nil
 }
 
 func (u *User) ID() uuid.UUID {
 	return u.id
+}
+
+func (u *User) PasswordHash() string {
+	return u.passwordHash
 }
 
 func (u *User) Email() string {

@@ -15,18 +15,18 @@ type Field struct {
 	Value string
 }
 
-func MapErr(err error) (interface{}, error) {
+func MapErr(err error) error {
 	switch {
 	case errors.Is(err, errs.ErrUnauthorized):
-		return nil, status.Error(codes.Unauthenticated, err.Error())
+		return status.Error(codes.Unauthenticated, err.Error())
 	case errors.Is(err, errs.ErrForbidden):
-		return nil, status.Error(codes.PermissionDenied, err.Error())
+		return status.Error(codes.PermissionDenied, err.Error())
 	case errors.Is(err, errs.ErrInvalidInput):
-		return nil, status.Error(codes.InvalidArgument, err.Error())
+		return status.Error(codes.InvalidArgument, err.Error())
 	case errors.Is(err, errs.ErrNotFound):
-		return nil, status.Error(codes.NotFound, err.Error())
+		return status.Error(codes.NotFound, err.Error())
 	default:
-		return nil, status.Error(codes.Internal, err.Error())
+		return status.Error(codes.Internal, err.Error())
 	}
 }
 

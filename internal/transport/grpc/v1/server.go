@@ -7,7 +7,8 @@ import (
 	"github.com/Weit145/auth-startup/internal/logger"
 	mapper_err "github.com/Weit145/auth-startup/internal/transport/grpc/v1/err"
 	"github.com/Weit145/auth-startup/internal/usecase"
-	pb "github.com/Weit145/proto-startup/auth"
+	"github.com/google/uuid"
+	pb "github.com/weit145/proto-startup/auth"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -56,14 +57,57 @@ func (s *Server) Register(ctx context.Context, req *pb.RegisterRequest) (*pb.Aut
 	err, authResp := s.ser.Register(ctx, email, password, name)
 	if err != nil {
 		slog.ErrorContext(logger.ErrorCtx(ctx, err), "register failed", slog.Any("error", err))
-		return nil, status.Error(codes.Internal, "failed to register user")
+		return nil, mapper_err.MapErr(err)
 	}
 	if authResp.User == nil {
 		slog.ErrorContext(ctx, "register returned empty user")
 		return nil, status.Error(codes.Internal, "failed to register user")
 	}
 
-	slog.InfoContext(ctx, "register completed", slog.String("user_id", authResp.User.Id))
+	slog.InfoContext(ctx, "register completed")
+
+	return &pb.AuthResponse{
+		AccessToken:  authResp.AccessToken,
+		RefreshToken: authResp.RefreshToken,
+		User: &pb.User{
+			Id:       authResp.User.Id,
+			Email:    authResp.User.Email,
+			Username: authResp.User.Username,
+			Role:     authResp.User.Role,
+		},
+	}, nil
+}
+
+func (s *Server) Login(ctx context.Context, req *pb.LoginRequest) (*pb.AuthResponse, error) {
+	email := req.GetEmail()
+	password := req.GetPassword()
+	ctx = logger.WithLogEmail(ctx, email)
+
+	if err := mapper_err.InvalidErr(ctx,
+		mapper_err.Field{Name: "email", Value: email},
+		mapper_err.Field{Name: "password", Value: password},
+	); err != nil {
+		slog.WarnContext(ctx, "login validation failed", slog.Any("error", err))
+		return nil, err
+	}
+
+	err, authResp := s.ser.Login(ctx, email, password)
+	if err != nil {
+		slog.ErrorContext(logger.ErrorCtx(ctx, err), "login failed", slog.Any("error", err))
+		return nil, mapper_err.MapErr(err)
+	}
+	if authResp.User == nil {
+		slog.ErrorContext(ctx, "login returned empty user")
+		return nil, status.Error(codes.Internal, "failed to login user")
+	}
+	id, err := uuid.Parse(authResp.User.Id)
+	if err != nil {
+		slog.ErrorContext(ctx, "login returned invalid user id", slog.Any("error", err))
+		return nil, status.Error(codes.Internal, "failed to login user")
+	}
+	ctx = logger.WithLogID(ctx, id)
+
+	slog.InfoContext(ctx, "login successful")
 
 	return &pb.AuthResponse{
 		AccessToken:  authResp.AccessToken,

@@ -2,12 +2,15 @@ package postgres
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
 	"github.com/Weit145/auth-startup/internal/domain"
+	errs "github.com/Weit145/auth-startup/internal/lib/e"
 	"github.com/Weit145/auth-startup/internal/logger"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 )
 
 func (r *Repository) CreateUser(ctx context.Context, user domain.User, passwordHash, refreshTokenHash string, refreshTokenExpiresAt time.Time) (domain.User, error) {
@@ -46,4 +49,41 @@ func (r *Repository) CreateUser(ctx context.Context, user domain.User, passwordH
 	}
 
 	return *result, nil
+}
+
+func (r *Repository) GetUserByEmail(ctx context.Context, email string) (*domain.User, error) {
+	query := `SELECT id, email, password_hash, name, role FROM users WHERE email = $1`
+
+	var (
+		id           uuid.UUID
+		emailDB      string
+		passwordHash string
+		name         string
+		role         string
+	)
+
+	err := r.db.QueryRow(ctx, query, email).Scan(&id, &emailDB, &passwordHash, &name, &role)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, logger.WrapError(ctx, errs.ErrNotFound)
+		}
+		return nil, logger.WrapError(ctx, fmt.Errorf("query user by email: %w", err))
+	}
+
+	result, err := domain.UserFromIDWithPasswordHash(id, emailDB, passwordHash, name, role)
+	if err != nil {
+		return nil, logger.WrapError(ctx, fmt.Errorf("build user from database row: %w", err))
+	}
+
+	return result, nil
+}
+
+func (r *Repository) AddSession(ctx context.Context, user domain.User, refreshTokenHash string, refreshTokenExpiresAt time.Time) (domain.User, error) {
+	createRefreshSessionStmt := `INSERT INTO refresh_sessions (user_id, refresh_token_hash, expires_at) VALUES ($1, $2, $3)`
+
+	if _, err := r.db.Exec(ctx, createRefreshSessionStmt, user.ID(), refreshTokenHash, refreshTokenExpiresAt); err != nil {
+		return domain.User{}, logger.WrapError(ctx, fmt.Errorf("insert refresh session: %w", err))
+	}
+
+	return user, nil
 }
