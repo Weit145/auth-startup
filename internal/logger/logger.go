@@ -33,7 +33,7 @@ type logCtx struct {
 }
 
 func (h *HandlerMiddlware) Handle(ctx context.Context, rec slog.Record) error {
-	if c, ok := ctx.Value(key).(logCtx); ok {
+	if c, ok := ctx.Value(key).(*logCtx); ok {
 		if c.email != "" {
 			rec.Add("email", c.email)
 		}
@@ -61,33 +61,33 @@ func WithLogEmail(ctx context.Context, email string) context.Context {
 	if len(email) > 5 {
 		email = email[:5] + strings.Repeat("*", len(email)-5)
 	}
-	if c, ok := ctx.Value(key).(logCtx); ok {
+	if c, ok := ctx.Value(key).(*logCtx); ok {
 		c.email = email
 		return context.WithValue(ctx, key, c)
 	}
-	return context.WithValue(ctx, key, logCtx{email: email})
+	return context.WithValue(ctx, key, &logCtx{email: email})
 }
 
 func WithLogName(ctx context.Context, name string) context.Context {
 	name = strings.TrimSpace(name)
-	if c, ok := ctx.Value(key).(logCtx); ok {
+	if c, ok := ctx.Value(key).(*logCtx); ok {
 		c.name = name
 		return context.WithValue(ctx, key, c)
 	}
-	return context.WithValue(ctx, key, logCtx{name: name})
+	return context.WithValue(ctx, key, &logCtx{name: name})
 }
 
 func WithLogID(ctx context.Context, id uuid.UUID) context.Context {
-	if c, ok := ctx.Value(key).(logCtx); ok {
+	if c, ok := ctx.Value(key).(*logCtx); ok {
 		c.id = id
 		return context.WithValue(ctx, key, c)
 	}
-	return context.WithValue(ctx, key, logCtx{id: id})
+	return context.WithValue(ctx, key, &logCtx{id: id})
 }
 
 type errorWithLogCtx struct {
 	next error
-	ctx  logCtx
+	ctx  *logCtx
 }
 
 func (e *errorWithLogCtx) Error() string {
@@ -102,8 +102,8 @@ func WrapError(ctx context.Context, err error) error {
 	if err == nil {
 		return nil
 	}
-	c := logCtx{}
-	if x, ok := ctx.Value(key).(logCtx); ok {
+	c := &logCtx{}
+	if x, ok := ctx.Value(key).(*logCtx); ok {
 		c = x
 	}
 	return &errorWithLogCtx{

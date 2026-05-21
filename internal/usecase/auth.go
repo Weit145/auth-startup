@@ -12,22 +12,15 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
-const refreshTokenTTL = 30 * 24 * time.Hour
-
 type AuthService interface {
 	Register(ctx context.Context, email, password, name string) (error, pb.AuthResponse)
 	Login(ctx context.Context, email, password string) (error, pb.AuthResponse)
 }
 
 func (s *Service) Register(ctx context.Context, email, password, name string) (error, pb.AuthResponse) {
-	user, err := domain.NewUser(email, name)
+	user, err := domain.NewUser(ctx, email, password, name)
 	if err != nil {
 		return logger.WrapError(ctx, fmt.Errorf("create domain user: %w", err)), pb.AuthResponse{}
-	}
-
-	passwordHash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
-	if err != nil {
-		return logger.WrapError(ctx, fmt.Errorf("hash password: %w", err)), pb.AuthResponse{}
 	}
 
 	refreshToken, err := s.inf.CreateRefreshToken()
@@ -35,14 +28,14 @@ func (s *Service) Register(ctx context.Context, email, password, name string) (e
 		return logger.WrapError(ctx, fmt.Errorf("create refresh token: %w", err)), pb.AuthResponse{}
 	}
 	refreshTokenHash := s.inf.HashRefreshToken(refreshToken)
-	refreshTokenExpiresAt := time.Now().UTC().Add(refreshTokenTTL)
+	refreshTokenExpiresAt := time.Now().UTC().Add(30 * 24 * time.Hour)
 
 	accessToken, err := s.inf.CreateJWT(ctx, *user)
 	if err != nil {
 		return logger.WrapError(ctx, fmt.Errorf("create access token: %w", err)), pb.AuthResponse{}
 	}
 
-	result, err := s.repo.CreateUser(ctx, *user, string(passwordHash), refreshTokenHash, refreshTokenExpiresAt)
+	result, err := s.repo.CreateUser(ctx, *user, refreshTokenHash, refreshTokenExpiresAt)
 	if err != nil {
 		return logger.WrapError(ctx, fmt.Errorf("create user: %w", err)), pb.AuthResponse{}
 	}
@@ -71,6 +64,7 @@ func (s *Service) Login(ctx context.Context, email, password string) (error, pb.
 	}
 
 	ctx = logger.WithLogID(ctx, user.ID())
+	ctx = logger.WithLogName(ctx, user.Name())
 
 	err = bcrypt.CompareHashAndPassword([]byte(user.PasswordHash()), []byte(password))
 	if err != nil {
@@ -82,7 +76,7 @@ func (s *Service) Login(ctx context.Context, email, password string) (error, pb.
 		return logger.WrapError(ctx, fmt.Errorf("create refresh token: %w", err)), pb.AuthResponse{}
 	}
 	refreshTokenHash := s.inf.HashRefreshToken(refreshToken)
-	refreshTokenExpiresAt := time.Now().UTC().Add(refreshTokenTTL)
+	refreshTokenExpiresAt := time.Now().UTC().Add(30 * 24 * time.Hour)
 
 	accessToken, err := s.inf.CreateJWT(ctx, *user)
 	if err != nil {
