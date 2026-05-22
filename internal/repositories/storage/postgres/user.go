@@ -79,10 +79,25 @@ func (r *Repository) GetUserByEmail(ctx context.Context, email string) (*domain.
 }
 
 func (r *Repository) AddSession(ctx context.Context, user domain.User, refreshTokenHash string, refreshTokenExpiresAt time.Time) (domain.User, error) {
+	tx, err := r.db.Begin(ctx)
+	if err != nil {
+		return domain.User{}, logger.WrapError(ctx, fmt.Errorf("begin add session tx: %w", err))
+	}
+	defer tx.Rollback(ctx)
+
+	deleteExpiredSessionsStmt := `DELETE FROM refresh_sessions WHERE expires_at <= now()`
+	if _, err := tx.Exec(ctx, deleteExpiredSessionsStmt); err != nil {
+		return domain.User{}, logger.WrapError(ctx, fmt.Errorf("delete expired refresh sessions: %w", err))
+	}
+
 	createRefreshSessionStmt := `INSERT INTO refresh_sessions (user_id, refresh_token_hash, expires_at) VALUES ($1, $2, $3)`
 
-	if _, err := r.db.Exec(ctx, createRefreshSessionStmt, user.ID(), refreshTokenHash, refreshTokenExpiresAt); err != nil {
+	if _, err := tx.Exec(ctx, createRefreshSessionStmt, user.ID(), refreshTokenHash, refreshTokenExpiresAt); err != nil {
 		return domain.User{}, logger.WrapError(ctx, fmt.Errorf("insert refresh session: %w", err))
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return domain.User{}, logger.WrapError(ctx, fmt.Errorf("commit add session tx: %w", err))
 	}
 
 	return user, nil

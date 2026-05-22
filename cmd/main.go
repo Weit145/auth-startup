@@ -16,6 +16,7 @@ import (
 	"github.com/Weit145/auth-startup/internal/logger"
 	"github.com/Weit145/auth-startup/internal/repositories/storage/postgres"
 	v1 "github.com/Weit145/auth-startup/internal/transport/grpc/v1"
+	kafkaTransport "github.com/Weit145/auth-startup/internal/transport/kafka"
 	"github.com/Weit145/auth-startup/internal/usecase"
 	"google.golang.org/grpc"
 )
@@ -57,12 +58,21 @@ func run() error {
 	defer repo.Close()
 	slog.Info("Init storage")
 
+	//Init kafka
+	kafkaProducer := kafkaTransport.NewProducer(cfg.Kafka.Brokers, cfg.Kafka.NotificationsTopic)
+	defer func() {
+		if err := kafkaProducer.Close(); err != nil {
+			slog.ErrorContext(logger.ErrorCtx(ctx, err), "close kafka producer", slog.Any("error", err))
+		}
+	}()
+	notificationPublisher := kafkaTransport.NewNotificationPublisher(kafkaProducer)
+
 	//Init infrastructure
 	slog.Info("Init infrastructure")
 	infrastructure := infrastructure.NewInfrastructure(&cfg)
 
 	//Init usecase
-	ser := usecase.NewServices(repo, infrastructure)
+	ser := usecase.NewServices(repo, infrastructure, &cfg, notificationPublisher)
 
 	//Init grpc server
 	lis, err := net.Listen("tcp", cfg.GRPC.AuthAddr)

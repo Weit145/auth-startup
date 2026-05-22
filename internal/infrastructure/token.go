@@ -59,7 +59,7 @@ func (i *Infrastructure) CreateJWT(ctx context.Context, user domain.User) (strin
 			Issuer:    "auth-service",
 			Audience:  []string{"gateway"},
 			IssuedAt:  jwt.NewNumericDate(now),
-			ExpiresAt: jwt.NewNumericDate(now.Add(15 * time.Minute)),
+			ExpiresAt: jwt.NewNumericDate(now.Add(i.cfg.Time.AccessTokenTTL)),
 			ID:        uuid.NewString(),
 		},
 	}

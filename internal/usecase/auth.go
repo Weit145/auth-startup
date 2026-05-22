@@ -28,7 +28,7 @@ func (s *Service) Register(ctx context.Context, email, password, name string) (e
 		return logger.WrapError(ctx, fmt.Errorf("create refresh token: %w", err)), pb.AuthResponse{}
 	}
 	refreshTokenHash := s.inf.HashRefreshToken(refreshToken)
-	refreshTokenExpiresAt := time.Now().UTC().Add(30 * 24 * time.Hour)
+	refreshTokenExpiresAt := time.Now().UTC().Add(s.cfg.Time.RefreshTokenTTL)
 
 	accessToken, err := s.inf.CreateJWT(ctx, *user)
 	if err != nil {
@@ -76,7 +76,7 @@ func (s *Service) Login(ctx context.Context, email, password string) (error, pb.
 		return logger.WrapError(ctx, fmt.Errorf("create refresh token: %w", err)), pb.AuthResponse{}
 	}
 	refreshTokenHash := s.inf.HashRefreshToken(refreshToken)
-	refreshTokenExpiresAt := time.Now().UTC().Add(30 * 24 * time.Hour)
+	refreshTokenExpiresAt := time.Now().UTC().Add(s.cfg.Time.RefreshTokenTTL)
 
 	accessToken, err := s.inf.CreateJWT(ctx, *user)
 	if err != nil {
