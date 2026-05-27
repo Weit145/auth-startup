@@ -18,7 +18,8 @@ import (
 
 type Token interface {
 	CreateJWT(ctx context.Context, user domain.User) (string, error)
-	CreateRefreshToken() (string, error)
+	CreateHashToken(ctx context.Context) (string, error)
+	HashToken(token string) string
 	HashRefreshToken(refreshToken string) string
 }
 
@@ -29,23 +30,25 @@ type AccessClaims struct {
 	jwt.RegisteredClaims
 }
 
-func (i *Infrastructure) CreateRefreshToken() (string, error) {
-	const op = "token.CreateRefreshToken"
-
+func (i *Infrastructure) CreateHashToken(ctx context.Context) (string, error) {
 	b := make([]byte, 64)
 
 	if _, err := rand.Read(b); err != nil {
-		return "", fmt.Errorf("%s: %w", op, err)
+		return "", logger.WrapError(ctx, fmt.Errorf("create hash token"))
 	}
 
 	return base64.RawURLEncoding.EncodeToString(b), nil
 }
 
-func (i *Infrastructure) HashRefreshToken(refreshToken string) string {
+func (i *Infrastructure) HashToken(token string) string {
 	h := hmac.New(sha256.New, []byte(i.cfg.JWT.RefreshSecret))
-	h.Write([]byte(refreshToken))
+	h.Write([]byte(token))
 
 	return hex.EncodeToString(h.Sum(nil))
+}
+
+func (i *Infrastructure) HashRefreshToken(refreshToken string) string {
+	return i.HashToken(refreshToken)
 }
 
 func (i *Infrastructure) CreateJWT(ctx context.Context, user domain.User) (string, error) {

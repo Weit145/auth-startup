@@ -25,6 +25,8 @@ func MapErr(err error) error {
 		return status.Error(codes.InvalidArgument, err.Error())
 	case errors.Is(err, errs.ErrNotFound):
 		return status.Error(codes.NotFound, err.Error())
+	case errors.Is(err, errs.ErrAlreadyExists):
+		return status.Error(codes.AlreadyExists, err.Error())
 	default:
 		return status.Error(codes.Internal, err.Error())
 	}

@@ -7,6 +7,7 @@ import (
 	"github.com/Weit145/auth-startup/internal/logger"
 	mapper_err "github.com/Weit145/auth-startup/internal/transport/grpc/v1/err"
 	"github.com/Weit145/auth-startup/internal/usecase"
+	"github.com/google/uuid"
 	pb "github.com/weit145/proto-startup/auth"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -37,7 +38,7 @@ func (s *Server) CheckHealth(ctx context.Context, req *pb.Empty) (*pb.Health, er
 	return &resp, nil
 }
 
-func (s *Server) Register(ctx context.Context, req *pb.RegisterRequest) (*pb.AuthResponse, error) {
+func (s *Server) Register(ctx context.Context, req *pb.RegisterRequest) (*pb.Health, error) {
 	name := req.GetName()
 	email := req.GetEmail()
 	password := req.GetPassword()
@@ -54,7 +55,7 @@ func (s *Server) Register(ctx context.Context, req *pb.RegisterRequest) (*pb.Aut
 		return nil, err
 	}
 
-	err, authResp := s.ser.Register(ctx, email, password, name)
+	err, healthResp := s.ser.Register(ctx, email, password, name)
 	if err != nil {
 		slog.ErrorContext(logger.ErrorCtx(ctx, err), "register failed", slog.Any("error", err))
 		return nil, mapper_err.MapErr(err)
@@ -62,7 +63,7 @@ func (s *Server) Register(ctx context.Context, req *pb.RegisterRequest) (*pb.Aut
 
 	slog.InfoContext(ctx, "register completed")
 
-	return &authResp, nil
+	return &healthResp, nil
 }
 
 func (s *Server) Login(ctx context.Context, req *pb.LoginRequest) (*pb.AuthResponse, error) {
@@ -84,6 +85,37 @@ func (s *Server) Login(ctx context.Context, req *pb.LoginRequest) (*pb.AuthRespo
 		return nil, mapper_err.MapErr(err)
 	}
 	slog.InfoContext(ctx, "login successful")
+
+	return &authResp, nil
+}
+
+func (s *Server) ConfirmEmail(ctx context.Context, req *pb.ConfirmRequest) (*pb.AuthResponse, error) {
+	token := req.Token
+	userID := req.UserID
+
+	if err := mapper_err.InvalidErr(ctx,
+		mapper_err.Field{Name: "token", Value: token},
+		mapper_err.Field{Name: "userID", Value: userID},
+	); err != nil {
+		slog.WarnContext(ctx, "login validation failed", slog.Any("error", err))
+		return nil, err
+	}
+
+	userUUID, err := uuid.Parse(userID)
+	if err != nil {
+		slog.WarnContext(ctx, "invalid userID", slog.Any("error", err))
+		return nil, status.Error(codes.InvalidArgument, "invalid userID")
+	}
+
+	ctx = logger.WithLogID(ctx, userUUID)
+
+	err, authResp := s.ser.ConfirmEmail(ctx, token, userUUID)
+	if err != nil {
+		slog.ErrorContext(logger.ErrorCtx(ctx, err), "confirm email failed", slog.Any("error", err))
+		return nil, mapper_err.MapErr(err)
+	}
+
+	slog.InfoContext(ctx, "email confirmed")
 
 	return &authResp, nil
 }

@@ -10,7 +10,7 @@ import (
 )
 
 type NotificationPublishes interface {
-	PublishEmailVerificationRequested(ctx context.Context, event event.EmailVerificationRequested) error
+	PublishEmailVerificationRequested(ctx context.Context, event event.EmailRequested) error
 }
 
 type NotificationPublisher struct {
@@ -21,7 +21,7 @@ func NewNotificationPublisher(producer *Producer) *NotificationPublisher {
 	return &NotificationPublisher{producer: producer}
 }
 
-func (p *NotificationPublisher) PublishEmailVerificationRequested(ctx context.Context, evt event.EmailVerificationRequested) error {
+func (p *NotificationPublisher) PublishEmailVerificationRequested(ctx context.Context, evt event.EmailRequested) error {
 	if evt.Type == "" {
 		evt.Type = event.EmailVerificationRequestedType
 	}

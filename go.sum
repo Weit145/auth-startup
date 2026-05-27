@@ -40,6 +40,10 @@ github.com/stretchr/testify v1.11.1 h1:7s2iGBzp5EwR7/aIZr8ao5+dra3wiQyKjjFuvgVKu
 github.com/stretchr/testify v1.11.1/go.mod h1:wZwfW3scLgRK+23gO65QZefKpKQRnfz6sD981Nm4B6U=
 github.com/weit145/proto-startup v0.1.3 h1:OBB77qzDMEyX5oyCVX3rrZ1WPvqAPX4etimJ+Sp3+LM=
 github.com/weit145/proto-startup v0.1.3/go.mod h1:RyE5hxPauuDhzWFb0IHpB5ltkSlwbjeeDZp6mmmTjB8=
+github.com/weit145/proto-startup v0.1.4 h1:w6oScBnxSS2KEAnkxYzvbyqASoEvfDKUPks4BDcATIY=
+github.com/weit145/proto-startup v0.1.4/go.mod h1:RyE5hxPauuDhzWFb0IHpB5ltkSlwbjeeDZp6mmmTjB8=
+github.com/weit145/proto-startup v0.1.5 h1:za6hGgifHQeCMXYsoiiMCKH/JO63RUWHndQZ/6Ch7zw=
+github.com/weit145/proto-startup v0.1.5/go.mod h1:RyE5hxPauuDhzWFb0IHpB5ltkSlwbjeeDZp6mmmTjB8=
 github.com/xdg-go/pbkdf2 v1.0.0 h1:Su7DPu48wXMwC3bs7MCNG+z4FhcyEuz5dlvchbq0B0c=
 github.com/xdg-go/pbkdf2 v1.0.0/go.mod h1:jrpuAogTd400dnrH08LKmI/xc1MbPOebTwRqcT5RDeI=
 github.com/xdg-go/scram v1.1.2 h1:FHX5I5B4i4hKRVRBCFRxq1iQRej7WO3hhBuJf+UUySY=
