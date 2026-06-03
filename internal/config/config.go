@@ -1,11 +1,14 @@
 package config
 
 import (
+	"crypto/rsa"
+	"fmt"
 	"os"
 	"strconv"
 	"strings"
 	"time"
 
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/joho/godotenv"
 )
 
@@ -30,8 +33,10 @@ type Kafka struct {
 }
 
 type JWT struct {
-	Secret        string `env:"JWT_SECRET" envDefault:"mysecretkey"`
-	RefreshSecret string `env:"JWT_REFRESH_SECRET" envDefault:"myrefreshsecretkey"`
+	PrivateKeyPath string `env:"JWT_PRIVATE_KEY_PATH" envDefault:"/run/secrets/jwt_private.pem"`
+	PrivateKey     *rsa.PrivateKey
+	PrivateKeyErr  error
+	RefreshSecret  string `env:"JWT_REFRESH_SECRET" envDefault:"myrefreshsecretkey"`
 }
 
 type Log struct {
@@ -104,8 +109,28 @@ func envDurationOrDefault(def time.Duration, numericUnit time.Duration, envs ...
 	return def
 }
 
-func InitConfig() Config {
+func loadJWTPrivateKey(path string) (*rsa.PrivateKey, error) {
+	keyPEM, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("read JWT private key %q: %w", path, err)
+	}
+
+	privateKey, err := jwt.ParseRSAPrivateKeyFromPEM(keyPEM)
+	if err != nil {
+		return nil, fmt.Errorf("parse JWT private key %q: %w", path, err)
+	}
+
+	return privateKey, nil
+}
+
+func InitConfig() (error, Config) {
 	_ = godotenv.Load()
+
+	jwtPrivateKeyPath := envOrDefault("/run/secrets/jwt_private.pem", "JWT_PRIVATE_KEY_PATH")
+	jwtPrivateKey, err := loadJWTPrivateKey(jwtPrivateKeyPath)
+	if err != nil {
+		return fmt.Errorf("Warning: failed to load JWT private key from %q: %v\n", jwtPrivateKeyPath, err), Config{}
+	}
 
 	cfg := Config{
 		Log: Log{
@@ -118,8 +143,10 @@ func InitConfig() Config {
 			AuthAddr: envOrDefault(":50051", "GRPC_AUTH_ADDR", "AUTH_GRPC_ADDR"),
 		},
 		JWT: JWT{
-			Secret:        envOrDefault("mysecretkey", "JWT_SECRET"),
-			RefreshSecret: envOrDefault("myrefreshsecretkey", "JWT_REFRESH_SECRET"),
+			PrivateKeyPath: jwtPrivateKeyPath,
+			PrivateKey:     jwtPrivateKey,
+			PrivateKeyErr:  err,
+			RefreshSecret:  envOrDefault("myrefreshsecretkey", "JWT_REFRESH_SECRET"),
 		},
 		Time: Time{
 			AccessTokenTTL:            envDurationOrDefault(15*time.Minute, time.Minute, "ACCESS_TOKEN_EXPIRE_MINUTES"),
@@ -131,5 +158,5 @@ func InitConfig() Config {
 			NotificationsTopic: envOrDefault("notifications", "KAFKA_NOTIFICATIONS_TOPIC"),
 		},
 	}
-	return cfg
+	return nil, cfg
 }

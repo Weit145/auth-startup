@@ -67,9 +67,13 @@ func (i *Infrastructure) CreateJWT(ctx context.Context, user domain.User) (strin
 		},
 	}
 
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	if i.cfg.JWT.PrivateKey == nil {
+		return "", logger.WrapError(ctx, fmt.Errorf("JWT private key is not configured"))
+	}
 
-	tokenString, err := token.SignedString([]byte(i.cfg.JWT.Secret))
+	token := jwt.NewWithClaims(jwt.SigningMethodRS256, claims)
+
+	tokenString, err := token.SignedString(i.cfg.JWT.PrivateKey)
 	if err != nil {
 		return "", logger.WrapError(ctx, fmt.Errorf("failed to sign JWT: %w", err))
 	}

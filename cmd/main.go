@@ -30,7 +30,10 @@ func main() {
 
 func run() error {
 	//Init config
-	cfg := config.InitConfig()
+	err, cfg := config.InitConfig()
+	if err != nil {
+		return err
+	}
 
 	//Init logger
 	logger.InitLogging(cfg.Log.Level)
