@@ -8,7 +8,7 @@ require (
 	github.com/jackc/pgx/v5 v5.9.2
 	github.com/joho/godotenv v1.5.1
 	github.com/segmentio/kafka-go v0.4.51
-	github.com/weit145/proto-startup v0.1.5
+	github.com/weit145/proto-startup v0.1.6
 	golang.org/x/crypto v0.48.0
 	google.golang.org/grpc v1.81.1
 )

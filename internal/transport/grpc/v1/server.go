@@ -119,3 +119,34 @@ func (s *Server) ConfirmEmail(ctx context.Context, req *pb.ConfirmRequest) (*pb.
 
 	return &authResp, nil
 }
+
+func (s *Server) Logout(ctx context.Context, req *pb.LogOutRequest) (*pb.Empty, error) {
+	userID := req.UserID
+	refreshToken := req.RefreshToken
+
+	if err := mapper_err.InvalidErr(ctx,
+		mapper_err.Field{Name: "userID", Value: userID},
+		mapper_err.Field{Name: "refreshToken", Value: refreshToken},
+	); err != nil {
+		slog.WarnContext(ctx, "logout validation failed", slog.Any("error", err))
+		return nil, err
+	}
+
+	userUUID, err := uuid.Parse(userID)
+	if err != nil {
+		slog.WarnContext(ctx, "invalid userID", slog.Any("error", err))
+		return nil, status.Error(codes.InvalidArgument, "invalid userID")
+	}
+
+	ctx = logger.WithLogID(ctx, userUUID)
+
+	err = s.ser.Logout(ctx, userUUID, refreshToken)
+	if err != nil {
+		slog.ErrorContext(logger.ErrorCtx(ctx, err), "logout failed", slog.Any("error", err))
+		return nil, mapper_err.MapErr(err)
+	}
+
+	slog.InfoContext(ctx, "logout successful")
+
+	return &pb.Empty{}, nil
+}

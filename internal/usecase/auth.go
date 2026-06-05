@@ -17,6 +17,7 @@ type AuthService interface {
 	Register(ctx context.Context, email, password, name string) (error, pb.Health)
 	Login(ctx context.Context, email, password string) (error, pb.AuthResponse)
 	ConfirmEmail(ctx context.Context, token string, userID uuid.UUID) (error, pb.AuthResponse)
+	Logout(ctx context.Context, userId uuid.UUID, refreshToken string) error
 }
 
 func (s *Service) Register(ctx context.Context, email, password, name string) (error, pb.Health) {
@@ -143,4 +144,15 @@ func (s *Service) ConfirmEmail(ctx context.Context, token string, userID uuid.UU
 			Role:     result.Role(),
 		},
 	}
+}
+
+func (s *Service) Logout(ctx context.Context, userId uuid.UUID, refreshToken string) error {
+	refreshTokenHash := s.inf.HashRefreshToken(refreshToken)
+
+	err := s.repo.DeleteSession(ctx, userId, refreshTokenHash)
+	if err != nil {
+		return logger.WrapError(ctx, fmt.Errorf("logout: %w", err))
+	}
+
+	return nil
 }
