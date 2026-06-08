@@ -26,19 +26,21 @@ func NewServer(ser usecase.Services) *grpc.Server {
 	return s
 }
 
-func (s *Server) CheckHealth(ctx context.Context, req *pb.Empty) (*pb.Health, error) {
+func (s *Server) CheckHealth(ctx context.Context, req *pb.Empty) (*pb.HealthDB, error) {
 
-	err := s.ser.CheckHealth(ctx)
+	bd, err := s.ser.CheckHealth(ctx)
 	if err != nil {
 		slog.ErrorContext(logger.ErrorCtx(ctx, err), "health check failed", slog.Any("error", err))
 		return nil, status.Error(codes.Internal, "failed to check health")
 	}
 
-	resp := pb.Health{Health: true}
-	return &resp, nil
+	resp := &pb.HealthDB{
+		Health: bd,
+	}
+	return resp, nil
 }
 
-func (s *Server) Register(ctx context.Context, req *pb.RegisterRequest) (*pb.Health, error) {
+func (s *Server) Register(ctx context.Context, req *pb.RegisterRequest) (*pb.Empty, error) {
 	name := req.GetName()
 	email := req.GetEmail()
 	password := req.GetPassword()
@@ -55,7 +57,7 @@ func (s *Server) Register(ctx context.Context, req *pb.RegisterRequest) (*pb.Hea
 		return nil, err
 	}
 
-	err, healthResp := s.ser.Register(ctx, email, password, name)
+	err := s.ser.Register(ctx, email, password, name)
 	if err != nil {
 		slog.ErrorContext(logger.ErrorCtx(ctx, err), "register failed", slog.Any("error", err))
 		return nil, mapper_err.MapErr(err)
@@ -63,7 +65,7 @@ func (s *Server) Register(ctx context.Context, req *pb.RegisterRequest) (*pb.Hea
 
 	slog.InfoContext(ctx, "register completed")
 
-	return &healthResp, nil
+	return &pb.Empty{}, nil
 }
 
 func (s *Server) Login(ctx context.Context, req *pb.LoginRequest) (*pb.AuthResponse, error) {
@@ -79,7 +81,7 @@ func (s *Server) Login(ctx context.Context, req *pb.LoginRequest) (*pb.AuthRespo
 		return nil, err
 	}
 
-	err, authResp := s.ser.Login(ctx, email, password)
+	authResp, err := s.ser.Login(ctx, email, password)
 	if err != nil {
 		slog.ErrorContext(logger.ErrorCtx(ctx, err), "login failed", slog.Any("error", err))
 		return nil, mapper_err.MapErr(err)
@@ -90,8 +92,8 @@ func (s *Server) Login(ctx context.Context, req *pb.LoginRequest) (*pb.AuthRespo
 }
 
 func (s *Server) ConfirmEmail(ctx context.Context, req *pb.ConfirmRequest) (*pb.AuthResponse, error) {
-	token := req.Token
-	userID := req.UserID
+	token := req.GetToken()
+	userID := req.GetUserID()
 
 	if err := mapper_err.InvalidErr(ctx,
 		mapper_err.Field{Name: "token", Value: token},
@@ -109,7 +111,7 @@ func (s *Server) ConfirmEmail(ctx context.Context, req *pb.ConfirmRequest) (*pb.
 
 	ctx = logger.WithLogID(ctx, userUUID)
 
-	err, authResp := s.ser.ConfirmEmail(ctx, token, userUUID)
+	authResp, err := s.ser.ConfirmEmail(ctx, token, userUUID)
 	if err != nil {
 		slog.ErrorContext(logger.ErrorCtx(ctx, err), "confirm email failed", slog.Any("error", err))
 		return nil, mapper_err.MapErr(err)
@@ -121,8 +123,8 @@ func (s *Server) ConfirmEmail(ctx context.Context, req *pb.ConfirmRequest) (*pb.
 }
 
 func (s *Server) Logout(ctx context.Context, req *pb.LogOutRequest) (*pb.Empty, error) {
-	userID := req.UserID
-	refreshToken := req.RefreshToken
+	userID := req.GetUserID()
+	refreshToken := req.GetRefreshToken()
 
 	if err := mapper_err.InvalidErr(ctx,
 		mapper_err.Field{Name: "userID", Value: userID},
@@ -149,4 +151,24 @@ func (s *Server) Logout(ctx context.Context, req *pb.LogOutRequest) (*pb.Empty, 
 	slog.InfoContext(ctx, "logout successful")
 
 	return &pb.Empty{}, nil
+}
+
+func (s *Server) RefreshToken(ctx context.Context, req *pb.RefreshRequest) (*pb.AuthResponse, error) {
+	refreshToken := req.GetRefreshToken()
+
+	if err := mapper_err.InvalidErr(ctx,
+		mapper_err.Field{Name: "refreshToken", Value: refreshToken},
+	); err != nil {
+		slog.WarnContext(ctx, "refresh token validation failed", slog.Any("error", err))
+		return nil, err
+	}
+
+	authResp, err := s.ser.RefreshToken(ctx, refreshToken)
+	if err != nil {
+		slog.ErrorContext(logger.ErrorCtx(ctx, err), "refresh token failed", slog.Any("error", err))
+		return nil, mapper_err.MapErr(err)
+	}
+	slog.InfoContext(ctx, "refresh token successful")
+
+	return &authResp, nil
 }

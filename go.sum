@@ -46,6 +46,10 @@ github.com/weit145/proto-startup v0.1.5 h1:za6hGgifHQeCMXYsoiiMCKH/JO63RUWHndQZ/
 github.com/weit145/proto-startup v0.1.5/go.mod h1:RyE5hxPauuDhzWFb0IHpB5ltkSlwbjeeDZp6mmmTjB8=
 github.com/weit145/proto-startup v0.1.6 h1:xVZp++q4i5pVqVSRac+aIuaB7YMYmwl84VE5Pfe8b3E=
 github.com/weit145/proto-startup v0.1.6/go.mod h1:RyE5hxPauuDhzWFb0IHpB5ltkSlwbjeeDZp6mmmTjB8=
+github.com/weit145/proto-startup v0.1.7 h1:aEj2MbNlLzrJ0yJ8oMyg4gsWmtIjqjlps85RKnloBew=
+github.com/weit145/proto-startup v0.1.7/go.mod h1:RyE5hxPauuDhzWFb0IHpB5ltkSlwbjeeDZp6mmmTjB8=
+github.com/weit145/proto-startup v0.1.8 h1:UF9feHGGKuoNMCWa74P+U14ByACZHkD3j4vHWQO8Ymk=
+github.com/weit145/proto-startup v0.1.8/go.mod h1:RyE5hxPauuDhzWFb0IHpB5ltkSlwbjeeDZp6mmmTjB8=
 github.com/xdg-go/pbkdf2 v1.0.0 h1:Su7DPu48wXMwC3bs7MCNG+z4FhcyEuz5dlvchbq0B0c=
 github.com/xdg-go/pbkdf2 v1.0.0/go.mod h1:jrpuAogTd400dnrH08LKmI/xc1MbPOebTwRqcT5RDeI=
 github.com/xdg-go/scram v1.1.2 h1:FHX5I5B4i4hKRVRBCFRxq1iQRej7WO3hhBuJf+UUySY=

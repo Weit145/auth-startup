@@ -18,7 +18,7 @@ type Service struct {
 }
 
 type Services interface {
-	CheckHealth(ctx context.Context) error
+	CheckHealth(ctx context.Context) (bool, error)
 	AuthService
 }
 
@@ -31,9 +31,9 @@ func NewServices(repo storage.Repositories, inf infrastructure.Infrastructures, 
 	}
 }
 
-func (s *Service) CheckHealth(ctx context.Context) error {
+func (s *Service) CheckHealth(ctx context.Context) (bool, error) {
 	if err := s.repo.CheckHealth(ctx); err != nil {
-		return logger.WrapError(ctx, err)
+		return false, logger.WrapError(ctx, err)
 	}
-	return nil
+	return true, nil
 }

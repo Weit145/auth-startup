@@ -123,13 +123,13 @@ func loadJWTPrivateKey(path string) (*rsa.PrivateKey, error) {
 	return privateKey, nil
 }
 
-func InitConfig() (error, Config) {
+func InitConfig() (Config, error) {
 	_ = godotenv.Load()
 
 	jwtPrivateKeyPath := envOrDefault("/run/secrets/jwt_private.pem", "JWT_PRIVATE_KEY_PATH")
 	jwtPrivateKey, err := loadJWTPrivateKey(jwtPrivateKeyPath)
 	if err != nil {
-		return fmt.Errorf("Warning: failed to load JWT private key from %q: %v\n", jwtPrivateKeyPath, err), Config{}
+		return Config{}, fmt.Errorf("Warning: failed to load JWT private key from %q: %v\n", jwtPrivateKeyPath, err)
 	}
 
 	cfg := Config{
@@ -158,5 +158,5 @@ func InitConfig() (error, Config) {
 			NotificationsTopic: envOrDefault("notifications", "KAFKA_NOTIFICATIONS_TOPIC"),
 		},
 	}
-	return nil, cfg
+	return cfg, nil
 }

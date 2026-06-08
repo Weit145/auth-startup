@@ -30,7 +30,7 @@ func main() {
 
 func run() error {
 	//Init config
-	err, cfg := config.InitConfig()
+	cfg, err := config.InitConfig()
 	if err != nil {
 		return err
 	}
