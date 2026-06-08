@@ -13,12 +13,17 @@ import (
 )
 
 type Config struct {
-	Log   Log   `envPrefix:""`
-	GRPC  GRPC  `envPrefix:""`
-	DB    DB    `envPrefix:""`
-	JWT   JWT   `envPrefix:""`
-	Time  Time  `envPrefix:""`
-	Kafka Kafka `envPrefix:""`
+	Log          Log          `envPrefix:""`
+	GRPC         GRPC         `envPrefix:""`
+	DB           DB           `envPrefix:""`
+	JWT          JWT          `envPrefix:""`
+	Time         Time         `envPrefix:""`
+	Kafka        Kafka        `envPrefix:""`
+	Notification Notification `envPrefix:""`
+}
+
+type Notification struct {
+	EmailVerificationURL string `env:"EMAIL_VERIFICATION_URL" envDefault:"http://localhost:3000/"`
 }
 
 type Time struct {
@@ -156,6 +161,9 @@ func InitConfig() (Config, error) {
 		Kafka: Kafka{
 			Brokers:            envListOrDefault([]string{"kafka:9092"}, "KAFKA_BROKERS"),
 			NotificationsTopic: envOrDefault("notifications", "KAFKA_NOTIFICATIONS_TOPIC"),
+		},
+		Notification: Notification{
+			EmailVerificationURL: envOrDefault("http://localhost:3000/", "EMAIL_VERIFICATION_URL"),
 		},
 	}
 	return cfg, nil

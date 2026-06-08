@@ -3,6 +3,7 @@ package event
 import (
 	"context"
 	"fmt"
+	"net/url"
 	"time"
 
 	"github.com/Weit145/auth-startup/internal/logger"
@@ -21,7 +22,7 @@ type EmailRequested struct {
 	CreatedAt       time.Time `json:"created_at"`
 }
 
-func NewEmailVer(ctx context.Context, expiresAt time.Time, userID uuid.UUID, email string, token string) (*EmailRequested, error) {
+func NewEmailVer(ctx context.Context, expiresAt time.Time, userID uuid.UUID, email string, token string, confirmationURL string) (*EmailRequested, error) {
 	if userID == uuid.Nil {
 		return nil, logger.WrapError(ctx, fmt.Errorf("userID is nil"))
 	}
@@ -38,6 +39,15 @@ func NewEmailVer(ctx context.Context, expiresAt time.Time, userID uuid.UUID, ema
 		return nil, logger.WrapError(ctx, fmt.Errorf("expiresAt is empty"))
 	}
 
+	verificationURL, err := url.Parse(confirmationURL)
+	if err != nil || verificationURL.Scheme == "" || verificationURL.Host == "" {
+		return nil, logger.WrapError(ctx, fmt.Errorf("invalid confirmation URL: %q", confirmationURL))
+	}
+	query := verificationURL.Query()
+	query.Set("token", token)
+	query.Set("userId", userID.String())
+	verificationURL.RawQuery = query.Encode()
+
 	now := time.Now().UTC()
 
 	return &EmailRequested{
@@ -45,7 +55,7 @@ func NewEmailVer(ctx context.Context, expiresAt time.Time, userID uuid.UUID, ema
 		Type:            EmailVerificationRequestedType,
 		UserID:          userID.String(),
 		Email:           email,
-		VerificationURL: "https://your-domain.com/confirm-email?token=" + token + "&userId=" + userID.String(),
+		VerificationURL: verificationURL.String(),
 		ExpiresAt:       expiresAt,
 		CreatedAt:       now,
 	}, nil

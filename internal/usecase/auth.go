@@ -45,7 +45,7 @@ func (s *Service) Register(ctx context.Context, email, password, name string) er
 	emailEvent, err := event.NewEmailVer(
 		ctx, tokenExpiresAt,
 		result.ID(), result.Email(),
-		token)
+		token, s.cfg.Notification.EmailVerificationURL)
 	if err != nil {
 		return logger.WrapError(ctx, fmt.Errorf("create event: %w", err))
 	}

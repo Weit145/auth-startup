@@ -13,16 +13,17 @@ type Producer struct {
 }
 
 func NewProducer(brokers []string, topic string) *Producer {
-	writer := kafka.NewWriter(kafka.WriterConfig{
-		Brokers:      brokers,
-		Topic:        topic,
-		Balancer:     &kafka.Hash{},
-		RequiredAcks: int(kafka.RequireAll),
-		Async:        false,
-		MaxAttempts:  3,
-		ReadTimeout:  10 * time.Second,
-		WriteTimeout: 10 * time.Second,
-	})
+	writer := &kafka.Writer{
+		Addr:                   kafka.TCP(brokers...),
+		Topic:                  topic,
+		Balancer:               &kafka.Hash{},
+		RequiredAcks:           kafka.RequireAll,
+		Async:                  false,
+		MaxAttempts:            3,
+		ReadTimeout:            10 * time.Second,
+		WriteTimeout:           10 * time.Second,
+		AllowAutoTopicCreation: true,
+	}
 	slog.Info("Kafka producer created", "brokers", brokers, "topic", topic)
 	return &Producer{writer: writer}
 }
