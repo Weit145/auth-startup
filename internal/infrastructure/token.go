@@ -17,10 +17,9 @@ import (
 )
 
 type Token interface {
-	CreateJWT(ctx context.Context, user domain.User) (string, error)
-	CreateHashToken(ctx context.Context) (string, error)
-	HashToken(token string) string
-	HashRefreshToken(refreshToken string) string
+	CreateJWT(ctx context.Context, user domain.User) (domain.Token, error)
+	CreateToken(ctx context.Context) (domain.Token, error)
+	HashToken(ctx context.Context, token domain.Token) (domain.Token, error)
 }
 
 type AccessClaims struct {
@@ -30,28 +29,41 @@ type AccessClaims struct {
 	jwt.RegisteredClaims
 }
 
-func (i *Infrastructure) CreateHashToken(ctx context.Context) (string, error) {
+func (i *Infrastructure) CreateToken(ctx context.Context) (domain.Token, error) {
 	b := make([]byte, 64)
 
 	if _, err := rand.Read(b); err != nil {
-		return "", logger.WrapError(ctx, fmt.Errorf("create hash token"))
+		return domain.Token{}, logger.WrapError(ctx, fmt.Errorf("create token: %w", err))
+	}
+	hashToken := base64.RawURLEncoding.EncodeToString(b)
+
+	token, err := domain.NewToken(ctx, hashToken, nil)
+	if err != nil {
+		return domain.Token{}, logger.WrapError(ctx, fmt.Errorf("create domain token: %w", err))
 	}
 
-	return base64.RawURLEncoding.EncodeToString(b), nil
+	return token, nil
 }
 
-func (i *Infrastructure) HashToken(token string) string {
+func (i *Infrastructure) HashToken(ctx context.Context, token domain.Token) (domain.Token, error) {
 	h := hmac.New(sha256.New, []byte(i.cfg.JWT.RefreshSecret))
-	h.Write([]byte(token))
+	h.Write([]byte(token.Value()))
 
-	return hex.EncodeToString(h.Sum(nil))
+	hash := hex.EncodeToString(h.Sum(nil))
+	var expiresAt *time.Time
+	if value, ok := token.ExpiresAt(); ok {
+		expiresAt = &value
+	}
+
+	tokenHash, err := domain.NewToken(ctx, hash, expiresAt)
+	if err != nil {
+		return domain.Token{}, logger.WrapError(ctx, fmt.Errorf("create domain token: %w", err))
+	}
+
+	return tokenHash, nil
 }
 
-func (i *Infrastructure) HashRefreshToken(refreshToken string) string {
-	return i.HashToken(refreshToken)
-}
-
-func (i *Infrastructure) CreateJWT(ctx context.Context, user domain.User) (string, error) {
+func (i *Infrastructure) CreateJWT(ctx context.Context, user domain.User) (domain.Token, error) {
 	now := time.Now()
 
 	claims := AccessClaims{
@@ -68,14 +80,19 @@ func (i *Infrastructure) CreateJWT(ctx context.Context, user domain.User) (strin
 	}
 
 	if i.cfg.JWT.PrivateKey == nil {
-		return "", logger.WrapError(ctx, fmt.Errorf("JWT private key is not configured"))
+		return domain.Token{}, logger.WrapError(ctx, fmt.Errorf("JWT private key is not configured"))
 	}
 
 	token := jwt.NewWithClaims(jwt.SigningMethodRS256, claims)
 
 	tokenString, err := token.SignedString(i.cfg.JWT.PrivateKey)
 	if err != nil {
-		return "", logger.WrapError(ctx, fmt.Errorf("failed to sign JWT: %w", err))
+		return domain.Token{}, logger.WrapError(ctx, fmt.Errorf("failed to sign JWT: %w", err))
 	}
-	return tokenString, nil
+
+	tokenDomain, err := domain.NewToken(ctx, tokenString, &claims.ExpiresAt.Time)
+	if err != nil {
+		return domain.Token{}, logger.WrapError(ctx, fmt.Errorf("create domain token: %w", err))
+	}
+	return tokenDomain, nil
 }

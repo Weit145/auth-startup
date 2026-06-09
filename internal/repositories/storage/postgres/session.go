@@ -13,14 +13,19 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-func (r *Repository) AddSession(ctx context.Context, user domain.User, refreshTokenHash string, refreshTokenExpiresAt time.Time) (domain.User, error) {
+func (r *Repository) AddSession(ctx context.Context, user domain.User, token domain.Token) (domain.User, error) {
+	tokenExpiresAt, ok := token.ExpiresAt()
+	if !ok {
+		return domain.User{}, logger.WrapError(ctx, fmt.Errorf("refresh token expiration is not set"))
+	}
+
 	tx, err := r.db.Begin(ctx)
 	if err != nil {
 		return domain.User{}, logger.WrapError(ctx, fmt.Errorf("begin add session tx: %w", err))
 	}
 	defer tx.Rollback(ctx)
 
-	if err := AddSessionTx(ctx, tx, user.ID(), refreshTokenHash, refreshTokenExpiresAt); err != nil {
+	if err := AddSessionTx(ctx, tx, user.ID(), token.Value(), tokenExpiresAt); err != nil {
 		return domain.User{}, logger.WrapError(ctx, err)
 	}
 
@@ -47,7 +52,7 @@ func AddSessionTx(ctx context.Context, tx pgx.Tx, userID uuid.UUID, refreshToken
 	return nil
 }
 
-func (r *Repository) RevokeSession(ctx context.Context, userID uuid.UUID, refreshTokenHash string) error {
+func (r *Repository) RevokeSession(ctx context.Context, userID uuid.UUID, token domain.Token) error {
 	tx, err := r.db.Begin(ctx)
 	if err != nil {
 		return logger.WrapError(ctx, fmt.Errorf("begin revoke session tx: %w", err))
@@ -61,7 +66,7 @@ func (r *Repository) RevokeSession(ctx context.Context, userID uuid.UUID, refres
 			AND refresh_token_hash = $2
 			AND revoked_at IS NULL
 	`
-	if _, err := tx.Exec(ctx, revokeSessionStmt, userID, refreshTokenHash); err != nil {
+	if _, err := tx.Exec(ctx, revokeSessionStmt, userID, token.Value()); err != nil {
 		return logger.WrapError(ctx, fmt.Errorf("revoke refresh session: %w", err))
 	}
 
@@ -72,7 +77,7 @@ func (r *Repository) RevokeSession(ctx context.Context, userID uuid.UUID, refres
 	return nil
 }
 
-func (r *Repository) ValidateSession(ctx context.Context, refreshTokenHash string) (domain.User, error) {
+func (r *Repository) ValidateSession(ctx context.Context, token domain.Token) (domain.User, error) {
 	tx, err := r.db.Begin(ctx)
 	if err != nil {
 		return domain.User{}, logger.WrapError(ctx, fmt.Errorf("begin validate session tx: %w", err))
@@ -109,7 +114,7 @@ func (r *Repository) ValidateSession(ctx context.Context, refreshTokenHash strin
 		emailVerifiedAt time.Time
 	)
 
-	err = tx.QueryRow(ctx, validateSessionStmt, refreshTokenHash).
+	err = tx.QueryRow(ctx, validateSessionStmt, token.Value()).
 		Scan(&id, &email, &passwordHash, &name, &role, &emailVerifiedAt)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {

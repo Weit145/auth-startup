@@ -13,7 +13,12 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-func (r *Repository) CreateUserWithEmailVerificationToken(ctx context.Context, user domain.User, tokenHash string, expiresAt time.Time) (domain.User, error) {
+func (r *Repository) CreateUserWithEmailVerificationToken(ctx context.Context, user domain.User, token domain.Token) (domain.User, error) {
+	tokenExpiresAt, ok := token.ExpiresAt()
+	if !ok {
+		return domain.User{}, logger.WrapError(ctx, fmt.Errorf("email verification token expiration is not set"))
+	}
+
 	tx, err := r.db.Begin(ctx)
 	if err != nil {
 		return domain.User{}, logger.WrapError(ctx, fmt.Errorf("begin create user tx: %w", err))
@@ -29,7 +34,7 @@ func (r *Repository) CreateUserWithEmailVerificationToken(ctx context.Context, u
 		return domain.User{}, logger.WrapError(ctx, err)
 	}
 
-	if err := AddEmailVerificationToken(ctx, tx, result.ID(), tokenHash, expiresAt); err != nil {
+	if err := AddEmailVerificationToken(ctx, tx, result.ID(), token.Value(), tokenExpiresAt); err != nil {
 		return domain.User{}, logger.WrapError(ctx, err)
 	}
 
@@ -155,14 +160,19 @@ func GetUserByID(ctx context.Context, tx pgx.Tx, userID uuid.UUID) (*domain.User
 	return result, nil
 }
 
-func (r *Repository) VerifyEmailAndAddSession(ctx context.Context, userID uuid.UUID, tokenHash string, refreshTokenHash string, refreshTokenExpiresAt time.Time) (*domain.User, error) {
+func (r *Repository) VerifyEmailAndAddSession(ctx context.Context, userID uuid.UUID, emailToken, refreshToken domain.Token) (*domain.User, error) {
+	refreshTokenExpiresAt, ok := refreshToken.ExpiresAt()
+	if !ok {
+		return nil, logger.WrapError(ctx, fmt.Errorf("refresh token expiration is not set"))
+	}
+
 	tx, err := r.db.Begin(ctx)
 	if err != nil {
 		return nil, logger.WrapError(ctx, fmt.Errorf("begin verify email and add session tx: %w", err))
 	}
 	defer tx.Rollback(ctx)
 
-	verifiedUserID, err := VerifyEmail(ctx, tx, userID, tokenHash)
+	verifiedUserID, err := VerifyEmail(ctx, tx, userID, emailToken.Value())
 	if err != nil {
 		return nil, logger.WrapError(ctx, fmt.Errorf("use email verification token: %w", err))
 	}
@@ -176,7 +186,7 @@ func (r *Repository) VerifyEmailAndAddSession(ctx context.Context, userID uuid.U
 		return nil, logger.WrapError(ctx, err)
 	}
 
-	if err := AddSessionTx(ctx, tx, verifiedUserID, refreshTokenHash, refreshTokenExpiresAt); err != nil {
+	if err := AddSessionTx(ctx, tx, verifiedUserID, refreshToken.Value(), refreshTokenExpiresAt); err != nil {
 		return nil, logger.WrapError(ctx, err)
 	}
 

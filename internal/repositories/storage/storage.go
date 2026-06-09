@@ -2,7 +2,6 @@ package storage
 
 import (
 	"context"
-	"time"
 
 	"github.com/Weit145/auth-startup/internal/domain"
 	"github.com/google/uuid"
@@ -15,13 +14,13 @@ type Repositories interface {
 }
 
 type UserRepository interface {
-	CreateUserWithEmailVerificationToken(ctx context.Context, user domain.User, tokenHash string, expiresAt time.Time) (domain.User, error)
+	CreateUserWithEmailVerificationToken(ctx context.Context, user domain.User, token domain.Token) (domain.User, error)
 	GetUserByEmail(ctx context.Context, email string) (*domain.User, error)
-	VerifyEmailAndAddSession(ctx context.Context, userID uuid.UUID, tokenHash string, refreshTokenHash string, refreshTokenExpiresAt time.Time) (*domain.User, error)
+	VerifyEmailAndAddSession(ctx context.Context, userID uuid.UUID, emailToken, refreshToken domain.Token) (*domain.User, error)
 }
 
 type SessionRepository interface {
-	AddSession(ctx context.Context, user domain.User, refreshTokenHash string, refreshTokenExpiresAt time.Time) (domain.User, error)
-	RevokeSession(ctx context.Context, userID uuid.UUID, refreshTokenHash string) error
-	ValidateSession(ctx context.Context, refreshTokenHash string) (domain.User, error)
+	AddSession(ctx context.Context, user domain.User, token domain.Token) (domain.User, error)
+	RevokeSession(ctx context.Context, userID uuid.UUID, token domain.Token) error
+	ValidateSession(ctx context.Context, token domain.Token) (domain.User, error)
 }

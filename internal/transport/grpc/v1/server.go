@@ -6,6 +6,7 @@ import (
 
 	"github.com/Weit145/auth-startup/internal/logger"
 	mapper_err "github.com/Weit145/auth-startup/internal/transport/grpc/v1/err"
+	"github.com/Weit145/auth-startup/internal/transport/grpc/v1/mapper"
 	"github.com/Weit145/auth-startup/internal/usecase"
 	"github.com/google/uuid"
 	pb "github.com/weit145/proto-startup/auth"
@@ -81,14 +82,15 @@ func (s *Server) Login(ctx context.Context, req *pb.LoginRequest) (*pb.AuthRespo
 		return nil, err
 	}
 
-	authResp, err := s.ser.Login(ctx, email, password)
+	user, tokens, err := s.ser.Login(ctx, email, password)
 	if err != nil {
 		slog.ErrorContext(logger.ErrorCtx(ctx, err), "login failed", slog.Any("error", err))
 		return nil, mapper_err.MapErr(err)
 	}
+	authResp := mapper.MapDomainToAuthResponse(user, tokens)
 	slog.InfoContext(ctx, "login successful")
 
-	return &authResp, nil
+	return authResp, nil
 }
 
 func (s *Server) ConfirmEmail(ctx context.Context, req *pb.ConfirmRequest) (*pb.AuthResponse, error) {
@@ -111,15 +113,15 @@ func (s *Server) ConfirmEmail(ctx context.Context, req *pb.ConfirmRequest) (*pb.
 
 	ctx = logger.WithLogID(ctx, userUUID)
 
-	authResp, err := s.ser.ConfirmEmail(ctx, token, userUUID)
+	user, tokens, err := s.ser.ConfirmEmail(ctx, token, userUUID)
 	if err != nil {
 		slog.ErrorContext(logger.ErrorCtx(ctx, err), "confirm email failed", slog.Any("error", err))
 		return nil, mapper_err.MapErr(err)
 	}
-
+	authResp := mapper.MapDomainToAuthResponse(user, tokens)
 	slog.InfoContext(ctx, "email confirmed")
 
-	return &authResp, nil
+	return authResp, nil
 }
 
 func (s *Server) Logout(ctx context.Context, req *pb.LogOutRequest) (*pb.Empty, error) {
@@ -163,12 +165,13 @@ func (s *Server) RefreshToken(ctx context.Context, req *pb.RefreshRequest) (*pb.
 		return nil, err
 	}
 
-	authResp, err := s.ser.RefreshToken(ctx, refreshToken)
+	user, tokens, err := s.ser.RefreshToken(ctx, refreshToken)
 	if err != nil {
 		slog.ErrorContext(logger.ErrorCtx(ctx, err), "refresh token failed", slog.Any("error", err))
 		return nil, mapper_err.MapErr(err)
 	}
+	authResp := mapper.MapDomainToAuthResponse(user, tokens)
 	slog.InfoContext(ctx, "refresh token successful")
 
-	return &authResp, nil
+	return authResp, nil
 }

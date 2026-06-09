@@ -6,6 +6,7 @@ import (
 	"net/url"
 	"time"
 
+	"github.com/Weit145/auth-startup/internal/domain"
 	"github.com/Weit145/auth-startup/internal/logger"
 	"github.com/google/uuid"
 )
@@ -22,20 +23,20 @@ type EmailRequested struct {
 	CreatedAt       time.Time `json:"created_at"`
 }
 
-func NewEmailVer(ctx context.Context, expiresAt time.Time, userID uuid.UUID, email string, token string, confirmationURL string) (*EmailRequested, error) {
-	if userID == uuid.Nil {
+func NewEmailVer(ctx context.Context, email domain.Email, confirmationURL string) (*EmailRequested, error) {
+	if email.UserID() == uuid.Nil {
 		return nil, logger.WrapError(ctx, fmt.Errorf("userID is nil"))
 	}
 
-	if email == "" {
+	if email.Email() == "" {
 		return nil, logger.WrapError(ctx, fmt.Errorf("email is empty"))
 	}
 
-	if token == "" {
+	if email.Token() == "" {
 		return nil, logger.WrapError(ctx, fmt.Errorf("token is empty"))
 	}
 
-	if expiresAt.IsZero() {
+	if email.ExpiresAt().IsZero() {
 		return nil, logger.WrapError(ctx, fmt.Errorf("expiresAt is empty"))
 	}
 
@@ -44,8 +45,8 @@ func NewEmailVer(ctx context.Context, expiresAt time.Time, userID uuid.UUID, ema
 		return nil, logger.WrapError(ctx, fmt.Errorf("invalid confirmation URL: %q", confirmationURL))
 	}
 	query := verificationURL.Query()
-	query.Set("token", token)
-	query.Set("userId", userID.String())
+	query.Set("token", email.Token())
+	query.Set("userId", email.UserID().String())
 	verificationURL.RawQuery = query.Encode()
 
 	now := time.Now().UTC()
@@ -53,10 +54,10 @@ func NewEmailVer(ctx context.Context, expiresAt time.Time, userID uuid.UUID, ema
 	return &EmailRequested{
 		EventID:         uuid.NewString(),
 		Type:            EmailVerificationRequestedType,
-		UserID:          userID.String(),
-		Email:           email,
+		UserID:          email.UserID().String(),
+		Email:           email.Email(),
 		VerificationURL: verificationURL.String(),
-		ExpiresAt:       expiresAt,
+		ExpiresAt:       email.ExpiresAt(),
 		CreatedAt:       now,
 	}, nil
 }

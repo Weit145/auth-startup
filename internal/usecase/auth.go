@@ -3,22 +3,19 @@ package usecase
 import (
 	"context"
 	"fmt"
-	"time"
 
 	"github.com/Weit145/auth-startup/internal/domain"
-	"github.com/Weit145/auth-startup/internal/event"
 	errs "github.com/Weit145/auth-startup/internal/lib/e"
 	"github.com/Weit145/auth-startup/internal/logger"
 	"github.com/google/uuid"
-	pb "github.com/weit145/proto-startup/auth"
 )
 
 type AuthService interface {
 	Register(ctx context.Context, email, password, name string) error
-	Login(ctx context.Context, email, password string) (pb.AuthResponse, error)
-	ConfirmEmail(ctx context.Context, token string, userID uuid.UUID) (pb.AuthResponse, error)
+	Login(ctx context.Context, email, password string) (domain.User, domain.Tokens, error)
+	ConfirmEmail(ctx context.Context, token string, userID uuid.UUID) (domain.User, domain.Tokens, error)
 	Logout(ctx context.Context, userId uuid.UUID, refreshToken string) error
-	RefreshToken(ctx context.Context, refreshToken string) (pb.AuthResponse, error)
+	RefreshToken(ctx context.Context, refreshToken string) (domain.User, domain.Tokens, error)
 }
 
 func (s *Service) Register(ctx context.Context, email, password, name string) error {
@@ -27,30 +24,33 @@ func (s *Service) Register(ctx context.Context, email, password, name string) er
 		return logger.WrapError(ctx, fmt.Errorf("create domain user: %w", err))
 	}
 
-	token, err := s.inf.CreateHashToken(ctx)
+	token, err := s.inf.CreateToken(ctx)
 	if err != nil {
 		return logger.WrapError(ctx, fmt.Errorf("create token for email verification: %w", err))
 	}
+	token.CreateExpiresAt(s.cfg.Time.EmailVerificationTokenTTL)
+	tokenExpiresAt, ok := token.ExpiresAt()
+	if !ok {
+		return logger.WrapError(ctx, fmt.Errorf("email verification token expiration is not set"))
+	}
 
-	tokenHash := s.inf.HashToken(token)
-	tokenExpiresAt := time.Now().UTC().Add(s.cfg.Time.EmailVerificationTokenTTL)
+	tokenHash, err := s.inf.HashToken(ctx, token)
+	if err != nil {
+		return logger.WrapError(ctx, fmt.Errorf("hash token for email verification: %w", err))
+	}
 
-	result, err := s.repo.CreateUserWithEmailVerificationToken(ctx, *user, tokenHash, tokenExpiresAt)
+	result, err := s.repo.CreateUserWithEmailVerificationToken(ctx, *user, tokenHash)
 	if err != nil {
 		return logger.WrapError(ctx, fmt.Errorf("create user with email verification token: %w", err))
 	}
-
 	ctx = logger.WithLogID(ctx, result.ID())
 
-	emailEvent, err := event.NewEmailVer(
-		ctx, tokenExpiresAt,
-		result.ID(), result.Email(),
-		token, s.cfg.Notification.EmailVerificationURL)
+	emailEvent, err := domain.NewEmail(ctx, result.ID(), result.Email(), token, tokenExpiresAt)
 	if err != nil {
-		return logger.WrapError(ctx, fmt.Errorf("create event: %w", err))
+		return logger.WrapError(ctx, fmt.Errorf("create email verification event: %w", err))
 	}
 
-	err = s.notifications.PublishEmailVerificationRequested(ctx, *emailEvent)
+	err = s.notifications.PublishEvent(ctx, emailEvent, s.cfg.Notification.EmailVerificationURL)
 	if err != nil {
 		return logger.WrapError(ctx, fmt.Errorf("publish email: %w", err))
 	}
@@ -58,13 +58,13 @@ func (s *Service) Register(ctx context.Context, email, password, name string) er
 	return nil
 }
 
-func (s *Service) Login(ctx context.Context, email, password string) (pb.AuthResponse, error) {
+func (s *Service) Login(ctx context.Context, email, password string) (domain.User, domain.Tokens, error) {
 	user, err := s.repo.GetUserByEmail(ctx, email)
 	if err != nil {
-		return pb.AuthResponse{}, logger.WrapError(ctx, fmt.Errorf("get user by email: %w", err))
+		return domain.User{}, domain.Tokens{}, logger.WrapError(ctx, fmt.Errorf("get user by email: %w", err))
 	}
 	if user == nil {
-		return pb.AuthResponse{}, logger.WrapError(ctx, errs.ErrNotFound)
+		return domain.User{}, domain.Tokens{}, logger.WrapError(ctx, errs.ErrNotFound)
 	}
 
 	ctx = logger.WithLogID(ctx, user.ID())
@@ -73,59 +73,64 @@ func (s *Service) Login(ctx context.Context, email, password string) (pb.AuthRes
 
 	err = user.CheckVerifiedPassword(ctx, password)
 	if err != nil {
-		return pb.AuthResponse{}, logger.WrapError(ctx, fmt.Errorf("compare password hash: %w", err))
+		return domain.User{}, domain.Tokens{}, logger.WrapError(ctx, fmt.Errorf("compare password hash: %w", err))
 	}
 
-	refreshToken, err := s.inf.CreateHashToken(ctx)
+	refreshToken, err := s.inf.CreateToken(ctx)
 	if err != nil {
-		return pb.AuthResponse{}, logger.WrapError(ctx, fmt.Errorf("create refresh token: %w", err))
+		return domain.User{}, domain.Tokens{}, logger.WrapError(ctx, fmt.Errorf("create refresh token: %w", err))
 	}
-	refreshTokenHash := s.inf.HashRefreshToken(refreshToken)
-	refreshTokenExpiresAt := time.Now().UTC().Add(s.cfg.Time.RefreshTokenTTL)
+	refreshToken.CreateExpiresAt(s.cfg.Time.RefreshTokenTTL)
+	refreshTokenHash, err := s.inf.HashToken(ctx, refreshToken)
+	if err != nil {
+		return domain.User{}, domain.Tokens{}, logger.WrapError(ctx, fmt.Errorf("hash refresh token: %w", err))
+	}
 
 	accessToken, err := s.inf.CreateJWT(ctx, *user)
 	if err != nil {
-		return pb.AuthResponse{}, logger.WrapError(ctx, fmt.Errorf("create access token: %w", err))
+		return domain.User{}, domain.Tokens{}, logger.WrapError(ctx, fmt.Errorf("create access token: %w", err))
 	}
 
-	result, err := s.repo.AddSession(ctx, *user, refreshTokenHash, refreshTokenExpiresAt)
+	result, err := s.repo.AddSession(ctx, *user, refreshTokenHash)
 	if err != nil {
-		return pb.AuthResponse{}, logger.WrapError(ctx, fmt.Errorf("add session: %w", err))
+		return domain.User{}, domain.Tokens{}, logger.WrapError(ctx, fmt.Errorf("add session: %w", err))
 	}
-
-	return pb.AuthResponse{
-		AccessToken:  accessToken,
-		RefreshToken: refreshToken,
-		User: &pb.User{
-			Id:       result.ID().String(),
-			Email:    result.Email(),
-			Username: result.Name(),
-			Role:     result.Role(),
-		},
-	}, nil
+	tokens, err := domain.NewTokens(ctx, accessToken, refreshToken)
+	if err != nil {
+		return domain.User{}, domain.Tokens{}, logger.WrapError(ctx, fmt.Errorf("create tokens: %w", err))
+	}
+	return result, tokens, nil
 }
 
-func (s *Service) ConfirmEmail(ctx context.Context, token string, userID uuid.UUID) (pb.AuthResponse, error) {
-	tokenHash := s.inf.HashToken(token)
-	refreshToken, err := s.inf.CreateHashToken(ctx)
+func (s *Service) ConfirmEmail(ctx context.Context, token string, userID uuid.UUID) (domain.User, domain.Tokens, error) {
+	tokenDomain, err := domain.NewToken(ctx, token, nil)
 	if err != nil {
-		return pb.AuthResponse{}, logger.WrapError(ctx, fmt.Errorf("create refresh token: %w", err))
+		return domain.User{}, domain.Tokens{}, logger.WrapError(ctx, fmt.Errorf("create token domain: %w", err))
 	}
-	refreshTokenHash := s.inf.HashRefreshToken(refreshToken)
-	refreshTokenExpiresAt := time.Now().UTC().Add(s.cfg.Time.RefreshTokenTTL)
-
+	tokenHash, err := s.inf.HashToken(ctx, tokenDomain)
+	if err != nil {
+		return domain.User{}, domain.Tokens{}, logger.WrapError(ctx, fmt.Errorf("hash email verification token: %w", err))
+	}
+	refreshToken, err := s.inf.CreateToken(ctx)
+	if err != nil {
+		return domain.User{}, domain.Tokens{}, logger.WrapError(ctx, fmt.Errorf("create refresh token: %w", err))
+	}
+	refreshToken.CreateExpiresAt(s.cfg.Time.RefreshTokenTTL)
+	refreshTokenHash, err := s.inf.HashToken(ctx, refreshToken)
+	if err != nil {
+		return domain.User{}, domain.Tokens{}, logger.WrapError(ctx, fmt.Errorf("hash refresh token: %w", err))
+	}
 	user, err := s.repo.VerifyEmailAndAddSession(
 		ctx,
 		userID,
 		tokenHash,
 		refreshTokenHash,
-		refreshTokenExpiresAt,
 	)
 	if err != nil {
-		return pb.AuthResponse{}, logger.WrapError(ctx, fmt.Errorf("verify email and add session: %w", err))
+		return domain.User{}, domain.Tokens{}, logger.WrapError(ctx, fmt.Errorf("verify email and add session: %w", err))
 	}
 	if user == nil {
-		return pb.AuthResponse{}, logger.WrapError(ctx, errs.ErrNotFound)
+		return domain.User{}, domain.Tokens{}, logger.WrapError(ctx, errs.ErrNotFound)
 	}
 
 	ctx = logger.WithLogName(ctx, user.Name())
@@ -133,25 +138,28 @@ func (s *Service) ConfirmEmail(ctx context.Context, token string, userID uuid.UU
 
 	accessToken, err := s.inf.CreateJWT(ctx, *user)
 	if err != nil {
-		return pb.AuthResponse{}, logger.WrapError(ctx, fmt.Errorf("create access token: %w", err))
+		return domain.User{}, domain.Tokens{}, logger.WrapError(ctx, fmt.Errorf("create access token: %w", err))
 	}
 
-	return pb.AuthResponse{
-		AccessToken:  accessToken,
-		RefreshToken: refreshToken,
-		User: &pb.User{
-			Id:       user.ID().String(),
-			Email:    user.Email(),
-			Username: user.Name(),
-			Role:     user.Role(),
-		},
-	}, nil
+	tokens, err := domain.NewTokens(ctx, accessToken, refreshToken)
+	if err != nil {
+		return domain.User{}, domain.Tokens{}, logger.WrapError(ctx, fmt.Errorf("create tokens: %w", err))
+	}
+
+	return *user, tokens, nil
 }
 
 func (s *Service) Logout(ctx context.Context, userId uuid.UUID, refreshToken string) error {
-	refreshTokenHash := s.inf.HashRefreshToken(refreshToken)
+	tokenDomain, err := domain.NewToken(ctx, refreshToken, nil)
+	if err != nil {
+		return logger.WrapError(ctx, fmt.Errorf("create token domain: %w", err))
+	}
+	refreshTokenHash, err := s.inf.HashToken(ctx, tokenDomain)
+	if err != nil {
+		return logger.WrapError(ctx, fmt.Errorf("hash refresh token: %w", err))
+	}
 
-	err := s.repo.RevokeSession(ctx, userId, refreshTokenHash)
+	err = s.repo.RevokeSession(ctx, userId, refreshTokenHash)
 	if err != nil {
 		return logger.WrapError(ctx, fmt.Errorf("logout: %w", err))
 	}
@@ -159,12 +167,20 @@ func (s *Service) Logout(ctx context.Context, userId uuid.UUID, refreshToken str
 	return nil
 }
 
-func (s *Service) RefreshToken(ctx context.Context, refreshToken string) (pb.AuthResponse, error) {
-	refreshTokenHash := s.inf.HashRefreshToken(refreshToken)
+func (s *Service) RefreshToken(ctx context.Context, refreshToken string) (domain.User, domain.Tokens, error) {
+	tokenDomain, err := domain.NewToken(ctx, refreshToken, nil)
+	if err != nil {
+		return domain.User{}, domain.Tokens{}, logger.WrapError(ctx, fmt.Errorf("create token domain: %w", err))
+	}
+
+	refreshTokenHash, err := s.inf.HashToken(ctx, tokenDomain)
+	if err != nil {
+		return domain.User{}, domain.Tokens{}, logger.WrapError(ctx, fmt.Errorf("hash refresh token: %w", err))
+	}
 
 	user, err := s.repo.ValidateSession(ctx, refreshTokenHash)
 	if err != nil {
-		return pb.AuthResponse{}, logger.WrapError(ctx, fmt.Errorf("validate refresh session: %w", err))
+		return domain.User{}, domain.Tokens{}, logger.WrapError(ctx, fmt.Errorf("validate refresh session: %w", err))
 	}
 
 	ctx = logger.WithLogID(ctx, user.ID())
@@ -173,17 +189,12 @@ func (s *Service) RefreshToken(ctx context.Context, refreshToken string) (pb.Aut
 
 	accessToken, err := s.inf.CreateJWT(ctx, user)
 	if err != nil {
-		return pb.AuthResponse{}, logger.WrapError(ctx, fmt.Errorf("create access token: %w", err))
+		return domain.User{}, domain.Tokens{}, logger.WrapError(ctx, fmt.Errorf("create access token: %w", err))
 	}
 
-	return pb.AuthResponse{
-		AccessToken:  accessToken,
-		RefreshToken: refreshToken,
-		User: &pb.User{
-			Id:       user.ID().String(),
-			Email:    user.Email(),
-			Username: user.Name(),
-			Role:     user.Role(),
-		},
-	}, nil
+	tokens, err := domain.NewTokens(ctx, accessToken, tokenDomain)
+	if err != nil {
+		return domain.User{}, domain.Tokens{}, logger.WrapError(ctx, fmt.Errorf("create tokens: %w", err))
+	}
+	return user, tokens, nil
 }

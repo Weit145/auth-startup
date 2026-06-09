@@ -4,13 +4,13 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"time"
 
-	"github.com/Weit145/auth-startup/internal/event"
+	"github.com/Weit145/auth-startup/internal/domain"
+	"github.com/Weit145/auth-startup/internal/transport/kafka/event"
 )
 
 type NotificationPublishes interface {
-	PublishEmailVerificationRequested(ctx context.Context, event event.EmailRequested) error
+	PublishEvent(ctx context.Context, evt domain.Email, url string) error
 }
 
 type NotificationPublisher struct {
@@ -21,21 +21,18 @@ func NewNotificationPublisher(producer *Producer) *NotificationPublisher {
 	return &NotificationPublisher{producer: producer}
 }
 
-func (p *NotificationPublisher) PublishEmailVerificationRequested(ctx context.Context, evt event.EmailRequested) error {
-	if evt.Type == "" {
-		evt.Type = event.EmailVerificationRequestedType
-	}
-	if evt.CreatedAt.IsZero() {
-		evt.CreatedAt = time.Now().UTC()
-	}
-
-	value, err := json.Marshal(evt)
+func (p *NotificationPublisher) PublishEvent(ctx context.Context, evt domain.Email, url string) error {
+	emailEvent, err := event.NewEmailVer(ctx, evt, url)
 	if err != nil {
-		return fmt.Errorf("marshal email verification requested event: %w", err)
+		return fmt.Errorf("create event: %w", err)
+	}
+	value, err := json.Marshal(emailEvent)
+	if err != nil {
+		return fmt.Errorf("marshal event: %w", err)
 	}
 
-	if err := p.producer.WriteMessages(ctx, []byte(evt.UserID), value); err != nil {
-		return fmt.Errorf("publish email verification requested event: %w", err)
+	if err := p.producer.WriteMessages(ctx, []byte(emailEvent.UserID), value); err != nil {
+		return fmt.Errorf("publish  event: %w", err)
 	}
 
 	return nil
