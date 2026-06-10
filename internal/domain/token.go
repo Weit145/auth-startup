@@ -5,43 +5,14 @@ import (
 	"fmt"
 	"time"
 
+	errs "github.com/Weit145/auth-startup/internal/lib/e"
+	"github.com/Weit145/auth-startup/internal/lib/valid"
 	"github.com/Weit145/auth-startup/internal/logger"
 )
 
 type Token struct {
 	value     string
 	expiresAt *time.Time
-}
-
-type Tokens struct {
-	accessToken  Token
-	refreshToken Token
-}
-
-func NewToken(ctx context.Context, tokenHash string, expiresAt *time.Time) (Token, error) {
-	if tokenHash == "" {
-		return Token{}, logger.WrapError(ctx, fmt.Errorf("token hash cannot be empty"))
-	}
-
-	return Token{
-		value:     tokenHash,
-		expiresAt: expiresAt,
-	}, nil
-}
-
-func NewTokens(ctx context.Context, accessToken, refreshToken Token) (Tokens, error) {
-	if accessToken.Value() == "" {
-		return Tokens{}, logger.WrapError(ctx, fmt.Errorf("access token cannot be empty"))
-	}
-
-	if refreshToken.Value() == "" {
-		return Tokens{}, logger.WrapError(ctx, fmt.Errorf("refresh token cannot be empty"))
-	}
-
-	return Tokens{
-		accessToken:  accessToken,
-		refreshToken: refreshToken,
-	}, nil
 }
 
 func (t Token) Value() string {
@@ -68,10 +39,45 @@ func (t Token) IsExpired() bool {
 	return time.Now().UTC().After(*t.expiresAt)
 }
 
+func NewToken(ctx context.Context, tokenHash string, expiresAt *time.Time) (Token, error) {
+	tokenHash, err := valid.ValidateOpaqueValue(ctx, tokenHash)
+	if err != nil {
+		return Token{}, logger.WrapError(ctx, fmt.Errorf("invalid token: %w", err))
+	}
+	if expiresAt != nil && expiresAt.IsZero() {
+		return Token{}, logger.WrapError(ctx, fmt.Errorf("invalid expiresAt: %w", errs.ErrInvalidInput))
+	}
+
+	return Token{
+		value:     tokenHash,
+		expiresAt: expiresAt,
+	}, nil
+}
+
+type Tokens struct {
+	accessToken  Token
+	refreshToken Token
+}
+
 func (t Tokens) AccessToken() Token {
 	return t.accessToken
 }
 
 func (t Tokens) RefreshToken() Token {
 	return t.refreshToken
+}
+
+func NewTokens(ctx context.Context, accessToken, refreshToken Token) (Tokens, error) {
+	if _, err := valid.ValidateOpaqueValue(ctx, accessToken.Value()); err != nil {
+		return Tokens{}, logger.WrapError(ctx, fmt.Errorf("invalid access token: %w", err))
+	}
+
+	if _, err := valid.ValidateOpaqueValue(ctx, refreshToken.Value()); err != nil {
+		return Tokens{}, logger.WrapError(ctx, fmt.Errorf("invalid refresh token: %w", err))
+	}
+
+	return Tokens{
+		accessToken:  accessToken,
+		refreshToken: refreshToken,
+	}, nil
 }

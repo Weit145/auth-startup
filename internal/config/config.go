@@ -41,7 +41,7 @@ type JWT struct {
 	PrivateKeyPath string `env:"JWT_PRIVATE_KEY_PATH" envDefault:"/run/secrets/jwt_private.pem"`
 	PrivateKey     *rsa.PrivateKey
 	PrivateKeyErr  error
-	RefreshSecret  string `env:"JWT_REFRESH_SECRET" envDefault:"myrefreshsecretkey"`
+	RefreshSecret  string `env:"JWT_REFRESH_SECRET"`
 }
 
 type Log struct {
@@ -69,6 +69,15 @@ func envOrDefault(def string, envs ...string) string {
 		return value
 	}
 	return strings.TrimSpace(def)
+}
+
+func requiredEnv(name string) (string, error) {
+	value := strings.TrimSpace(os.Getenv(name))
+	if value == "" {
+		return "", fmt.Errorf("%s is required", name)
+	}
+
+	return value, nil
 }
 
 func envListOrDefault(def []string, envs ...string) []string {
@@ -131,6 +140,11 @@ func loadJWTPrivateKey(path string) (*rsa.PrivateKey, error) {
 func InitConfig() (Config, error) {
 	_ = godotenv.Load()
 
+	jwtRefreshSecret, err := requiredEnv("JWT_REFRESH_SECRET")
+	if err != nil {
+		return Config{}, err
+	}
+
 	jwtPrivateKeyPath := envOrDefault("/run/secrets/jwt_private.pem", "JWT_PRIVATE_KEY_PATH")
 	jwtPrivateKey, err := loadJWTPrivateKey(jwtPrivateKeyPath)
 	if err != nil {
@@ -151,7 +165,7 @@ func InitConfig() (Config, error) {
 			PrivateKeyPath: jwtPrivateKeyPath,
 			PrivateKey:     jwtPrivateKey,
 			PrivateKeyErr:  err,
-			RefreshSecret:  envOrDefault("myrefreshsecretkey", "JWT_REFRESH_SECRET"),
+			RefreshSecret:  jwtRefreshSecret,
 		},
 		Time: Time{
 			AccessTokenTTL:            envDurationOrDefault(15*time.Minute, time.Minute, "ACCESS_TOKEN_EXPIRE_MINUTES"),

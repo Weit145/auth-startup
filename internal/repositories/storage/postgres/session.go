@@ -37,9 +37,6 @@ func (r *Repository) AddSession(ctx context.Context, user domain.User, token dom
 }
 
 func AddSessionTx(ctx context.Context, tx pgx.Tx, userID uuid.UUID, refreshTokenHash string, refreshTokenExpiresAt time.Time) error {
-	if err := DeleteExpiredSessions(ctx, tx); err != nil {
-		return logger.WrapError(ctx, fmt.Errorf("delete expired sessions: %w", err))
-	}
 
 	createRefreshSessionStmt := `
 		INSERT INTO refresh_sessions (user_id, refresh_token_hash, expires_at)
@@ -77,68 +74,54 @@ func (r *Repository) RevokeSession(ctx context.Context, userID uuid.UUID, token 
 	return nil
 }
 
-func (r *Repository) ValidateSession(ctx context.Context, token domain.Token) (domain.User, error) {
+func (r *Repository) RotateSession(ctx context.Context, oldToken, newToken domain.Token) (domain.User, error) {
 	tx, err := r.db.Begin(ctx)
 	if err != nil {
-		return domain.User{}, logger.WrapError(ctx, fmt.Errorf("begin validate session tx: %w", err))
+		return domain.User{}, logger.WrapError(ctx, fmt.Errorf("begin rotate session tx: %w", err))
 	}
 	defer tx.Rollback(ctx)
 
-	if err := DeleteExpiredSessions(ctx, tx); err != nil {
-		return domain.User{}, logger.WrapError(ctx, fmt.Errorf("delete expired sessions: %w", err))
-	}
-
-	validateSessionStmt := `
-		SELECT
-			u.id,
-			u.email,
-			u.password_hash,
-			u.name,
-			u.role,
-			u.email_verified_at
-		FROM refresh_sessions AS rs
-		JOIN users AS u ON u.id = rs.user_id
-		WHERE rs.refresh_token_hash = $1
-			AND rs.revoked_at IS NULL
-			AND rs.expires_at > now()
-			AND u.email_verified_at IS NOT NULL
-		FOR SHARE OF rs, u
-	`
+	rotateSessionStmt := `
+			UPDATE refresh_sessions AS rs
+			SET
+				refresh_token_hash = $2
+			FROM users AS u
+			WHERE rs.refresh_token_hash = $1
+				AND u.id = rs.user_id
+				AND rs.revoked_at IS NULL
+				AND rs.expires_at > now()
+				AND u.email_verified_at IS NOT NULL
+			RETURNING
+				u.id,
+				u.email,
+				u.name,
+				u.role
+		`
 
 	var (
-		id              uuid.UUID
-		email           string
-		passwordHash    string
-		name            string
-		role            string
-		emailVerifiedAt time.Time
+		id    uuid.UUID
+		email string
+		name  string
+		role  string
 	)
 
-	err = tx.QueryRow(ctx, validateSessionStmt, token.Value()).
-		Scan(&id, &email, &passwordHash, &name, &role, &emailVerifiedAt)
+	err = tx.QueryRow(ctx, rotateSessionStmt, oldToken.Value(), newToken.Value()).
+		Scan(&id, &email, &name, &role)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return domain.User{}, logger.WrapError(ctx, errs.ErrUnauthorized)
 		}
-		return domain.User{}, logger.WrapError(ctx, fmt.Errorf("validate refresh session: %w", err))
+		return domain.User{}, logger.WrapError(ctx, fmt.Errorf("rotate refresh session: %w", err))
 	}
 
-	user, err := domain.UserVerification(ctx, id, email, passwordHash, name, role, &emailVerifiedAt)
+	user, err := domain.NewUser(ctx, id, email, name, role)
 	if err != nil {
 		return domain.User{}, logger.WrapError(ctx, fmt.Errorf("build user from database row: %w", err))
 	}
 
 	if err := tx.Commit(ctx); err != nil {
-		return domain.User{}, logger.WrapError(ctx, fmt.Errorf("commit validate session tx: %w", err))
+		return domain.User{}, logger.WrapError(ctx, fmt.Errorf("commit rotate session tx: %w", err))
 	}
 
 	return *user, nil
-}
-
-func DeleteExpiredSessions(ctx context.Context, db pgx.Tx) error {
-	deleteExpiredSessionsStmt := `DELETE FROM refresh_sessions WHERE expires_at <= now()`
-	if _, err := db.Exec(ctx, deleteExpiredSessionsStmt); err != nil {
-		return logger.WrapError(ctx, fmt.Errorf("delete expired refresh sessions: %w", err))
-	}
-	return nil
 }

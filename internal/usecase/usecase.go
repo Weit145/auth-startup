@@ -2,30 +2,36 @@ package usecase
 
 import (
 	"context"
+	"time"
 
-	"github.com/Weit145/auth-startup/internal/config"
-	"github.com/Weit145/auth-startup/internal/infrastructure"
 	"github.com/Weit145/auth-startup/internal/logger"
-	"github.com/Weit145/auth-startup/internal/repositories/storage"
-	"github.com/Weit145/auth-startup/internal/transport/kafka"
+	"github.com/Weit145/auth-startup/internal/usecase/port"
 )
 
+type Settings struct {
+	EmailVerificationURL      string
+	RefreshTokenTTL           time.Duration
+	EmailVerificationTokenTTL time.Duration
+}
+
 type Service struct {
-	repo          storage.Repositories
-	inf           infrastructure.Infrastructures
-	cfg           *config.Config
-	notifications kafka.NotificationPublishes
+	repo          port.Repository
+	tokens        port.TokenProvider
+	cfg           Settings
+	notifications port.NotificationPublisher
 }
 
 type Services interface {
 	CheckHealth(ctx context.Context) (bool, error)
-	AuthService
+	RefreshService
+	LoginService
+	RegisterService
 }
 
-func NewServices(repo storage.Repositories, inf infrastructure.Infrastructures, cfg *config.Config, notifications kafka.NotificationPublishes) *Service {
+func NewServices(repo port.Repository, tokens port.TokenProvider, cfg Settings, notifications port.NotificationPublisher) *Service {
 	return &Service{
 		repo:          repo,
-		inf:           inf,
+		tokens:        tokens,
 		cfg:           cfg,
 		notifications: notifications,
 	}

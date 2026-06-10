@@ -12,7 +12,7 @@ import (
 	"time"
 
 	"github.com/Weit145/auth-startup/internal/config"
-	"github.com/Weit145/auth-startup/internal/infrastructure"
+	tokenInfrastructure "github.com/Weit145/auth-startup/internal/infrastructure/token"
 	"github.com/Weit145/auth-startup/internal/logger"
 	"github.com/Weit145/auth-startup/internal/repositories/storage/postgres"
 	v1 "github.com/Weit145/auth-startup/internal/transport/grpc/v1"
@@ -72,10 +72,19 @@ func run() error {
 
 	//Init infrastructure
 	slog.Info("Init infrastructure")
-	infrastructure := infrastructure.NewInfrastructure(&cfg)
+	tokenProvider := tokenInfrastructure.NewProvider(tokenInfrastructure.Settings{
+		PrivateKey:     cfg.JWT.PrivateKey,
+		RefreshSecret:  cfg.JWT.RefreshSecret,
+		AccessTokenTTL: cfg.Time.AccessTokenTTL,
+	})
 
 	//Init usecase
-	ser := usecase.NewServices(repo, infrastructure, &cfg, notificationPublisher)
+	usecaseSettings := usecase.Settings{
+		EmailVerificationURL:      cfg.Notification.EmailVerificationURL,
+		RefreshTokenTTL:           cfg.Time.RefreshTokenTTL,
+		EmailVerificationTokenTTL: cfg.Time.EmailVerificationTokenTTL,
+	}
+	ser := usecase.NewServices(repo, tokenProvider, usecaseSettings, notificationPublisher)
 
 	//Init grpc server
 	lis, err := net.Listen("tcp", cfg.GRPC.AuthAddr)

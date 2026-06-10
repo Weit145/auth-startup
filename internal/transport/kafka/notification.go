@@ -9,10 +9,6 @@ import (
 	"github.com/Weit145/auth-startup/internal/transport/kafka/event"
 )
 
-type NotificationPublishes interface {
-	PublishEvent(ctx context.Context, evt domain.Email, url string) error
-}
-
 type NotificationPublisher struct {
 	producer *Producer
 }

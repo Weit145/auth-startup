@@ -1,4 +1,4 @@
-package infrastructure
+package token
 
 import (
 	"context"
@@ -16,12 +16,6 @@ import (
 	"github.com/google/uuid"
 )
 
-type Token interface {
-	CreateJWT(ctx context.Context, user domain.User) (domain.Token, error)
-	CreateToken(ctx context.Context) (domain.Token, error)
-	HashToken(ctx context.Context, token domain.Token) (domain.Token, error)
-}
-
 type AccessClaims struct {
 	Role string `json:"role"`
 	Type string `json:"typ"`
@@ -29,7 +23,7 @@ type AccessClaims struct {
 	jwt.RegisteredClaims
 }
 
-func (i *Infrastructure) CreateToken(ctx context.Context) (domain.Token, error) {
+func (p *Provider) CreateToken(ctx context.Context) (domain.Token, error) {
 	b := make([]byte, 64)
 
 	if _, err := rand.Read(b); err != nil {
@@ -45,8 +39,8 @@ func (i *Infrastructure) CreateToken(ctx context.Context) (domain.Token, error) 
 	return token, nil
 }
 
-func (i *Infrastructure) HashToken(ctx context.Context, token domain.Token) (domain.Token, error) {
-	h := hmac.New(sha256.New, []byte(i.cfg.JWT.RefreshSecret))
+func (p *Provider) HashToken(ctx context.Context, token domain.Token) (domain.Token, error) {
+	h := hmac.New(sha256.New, []byte(p.cfg.RefreshSecret))
 	h.Write([]byte(token.Value()))
 
 	hash := hex.EncodeToString(h.Sum(nil))
@@ -63,7 +57,7 @@ func (i *Infrastructure) HashToken(ctx context.Context, token domain.Token) (dom
 	return tokenHash, nil
 }
 
-func (i *Infrastructure) CreateJWT(ctx context.Context, user domain.User) (domain.Token, error) {
+func (p *Provider) CreateJWT(ctx context.Context, user domain.User) (domain.Token, error) {
 	now := time.Now()
 
 	claims := AccessClaims{
@@ -74,18 +68,18 @@ func (i *Infrastructure) CreateJWT(ctx context.Context, user domain.User) (domai
 			Issuer:    "auth-service",
 			Audience:  []string{"gateway"},
 			IssuedAt:  jwt.NewNumericDate(now),
-			ExpiresAt: jwt.NewNumericDate(now.Add(i.cfg.Time.AccessTokenTTL)),
+			ExpiresAt: jwt.NewNumericDate(now.Add(p.cfg.AccessTokenTTL)),
 			ID:        uuid.NewString(),
 		},
 	}
 
-	if i.cfg.JWT.PrivateKey == nil {
+	if p.cfg.PrivateKey == nil {
 		return domain.Token{}, logger.WrapError(ctx, fmt.Errorf("JWT private key is not configured"))
 	}
 
 	token := jwt.NewWithClaims(jwt.SigningMethodRS256, claims)
 
-	tokenString, err := token.SignedString(i.cfg.JWT.PrivateKey)
+	tokenString, err := token.SignedString(p.cfg.PrivateKey)
 	if err != nil {
 		return domain.Token{}, logger.WrapError(ctx, fmt.Errorf("failed to sign JWT: %w", err))
 	}

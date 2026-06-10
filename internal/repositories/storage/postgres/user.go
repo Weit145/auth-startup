@@ -13,7 +13,7 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-func (r *Repository) CreateUserWithEmailVerificationToken(ctx context.Context, user domain.User, token domain.Token) (domain.User, error) {
+func (r *Repository) CreateUserWithEmailVerificationToken(ctx context.Context, account domain.Account, token domain.Token) (domain.User, error) {
 	tokenExpiresAt, ok := token.ExpiresAt()
 	if !ok {
 		return domain.User{}, logger.WrapError(ctx, fmt.Errorf("email verification token expiration is not set"))
@@ -25,7 +25,7 @@ func (r *Repository) CreateUserWithEmailVerificationToken(ctx context.Context, u
 	}
 	defer tx.Rollback(ctx)
 
-	result, err := UpsertUnverifiedUser(ctx, tx, user)
+	result, err := UpsertUnverifiedUser(ctx, tx, account)
 	if err != nil {
 		return domain.User{}, logger.WrapError(ctx, err)
 	}
@@ -45,7 +45,7 @@ func (r *Repository) CreateUserWithEmailVerificationToken(ctx context.Context, u
 	return result, nil
 }
 
-func UpsertUnverifiedUser(ctx context.Context, tx pgx.Tx, user domain.User) (domain.User, error) {
+func UpsertUnverifiedUser(ctx context.Context, tx pgx.Tx, account domain.Account) (domain.User, error) {
 	createUserStmt := `
 		INSERT INTO users (id, email, password_hash, name, role)
 		VALUES ($1, $2, $3, $4, $5)
@@ -63,7 +63,8 @@ func UpsertUnverifiedUser(ctx context.Context, tx pgx.Tx, user domain.User) (dom
 		role  string
 	)
 
-	err := tx.QueryRow(ctx, createUserStmt, user.ID(), user.Email(), user.PasswordHash(), user.Name(), user.Role()).
+	user := account.User()
+	err := tx.QueryRow(ctx, createUserStmt, user.ID(), user.Email(), account.PasswordHash(), user.Name(), user.Role()).
 		Scan(&id, &email, &name, &role)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -72,7 +73,7 @@ func UpsertUnverifiedUser(ctx context.Context, tx pgx.Tx, user domain.User) (dom
 		return domain.User{}, logger.WrapError(ctx, fmt.Errorf("upsert user: %w", err))
 	}
 
-	result, err := domain.UserFromID(ctx, id, email, name, role)
+	result, err := domain.NewUser(ctx, id, email, name, role)
 	if err != nil {
 		return domain.User{}, logger.WrapError(ctx, fmt.Errorf("build user from database row: %w", err))
 	}
@@ -80,7 +81,7 @@ func UpsertUnverifiedUser(ctx context.Context, tx pgx.Tx, user domain.User) (dom
 	return *result, nil
 }
 
-func (r *Repository) GetUserByEmail(ctx context.Context, email string) (*domain.User, error) {
+func (r *Repository) GetUserByEmail(ctx context.Context, email string) (*domain.Account, error) {
 	query := `
 		SELECT id, email, password_hash, name, role, email_verified_at
 		FROM users
@@ -103,7 +104,7 @@ func (r *Repository) GetUserByEmail(ctx context.Context, email string) (*domain.
 		return nil, logger.WrapError(ctx, fmt.Errorf("query user by email: %w", err))
 	}
 
-	result, err := domain.UserVerification(ctx, id, emailDB, passwordHash, name, role, &emailVerifiedAt)
+	result, err := domain.CreateUserAccount(ctx, id, emailDB, passwordHash, name, role, &emailVerifiedAt)
 	if err != nil {
 		return nil, logger.WrapError(ctx, fmt.Errorf("build user from database row: %w", err))
 	}
@@ -131,20 +132,18 @@ func VerifyUserEmail(ctx context.Context, tx pgx.Tx, userID uuid.UUID) error {
 
 func GetUserByID(ctx context.Context, tx pgx.Tx, userID uuid.UUID) (*domain.User, error) {
 	query := `
-		SELECT id, email, password_hash, name, role, email_verified_at
-		FROM users
-		WHERE id = $1 AND email_verified_at IS NOT NULL
-	`
+			SELECT id, email, name, role
+			FROM users
+			WHERE id = $1 AND email_verified_at IS NOT NULL
+		`
 	var (
-		id              uuid.UUID
-		emailDB         string
-		passwordHash    string
-		name            string
-		role            string
-		emailVerifiedAt time.Time
+		id      uuid.UUID
+		emailDB string
+		name    string
+		role    string
 	)
 
-	err := tx.QueryRow(ctx, query, userID).Scan(&id, &emailDB, &passwordHash, &name, &role, &emailVerifiedAt)
+	err := tx.QueryRow(ctx, query, userID).Scan(&id, &emailDB, &name, &role)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, logger.WrapError(ctx, errs.ErrNotFound)
@@ -152,7 +151,7 @@ func GetUserByID(ctx context.Context, tx pgx.Tx, userID uuid.UUID) (*domain.User
 		return nil, logger.WrapError(ctx, fmt.Errorf("query user by id: %w", err))
 	}
 
-	result, err := domain.UserVerification(ctx, id, emailDB, passwordHash, name, role, &emailVerifiedAt)
+	result, err := domain.NewUser(ctx, id, emailDB, name, role)
 	if err != nil {
 		return nil, logger.WrapError(ctx, fmt.Errorf("build user from database row: %w", err))
 	}

@@ -1,4 +1,4 @@
-package storage
+package port
 
 import (
 	"context"
@@ -7,20 +7,20 @@ import (
 	"github.com/google/uuid"
 )
 
-type Repositories interface {
+type Repository interface {
 	UserRepository
 	SessionRepository
 	CheckHealth(ctx context.Context) error
 }
 
 type UserRepository interface {
-	CreateUserWithEmailVerificationToken(ctx context.Context, user domain.User, token domain.Token) (domain.User, error)
-	GetUserByEmail(ctx context.Context, email string) (*domain.User, error)
+	CreateUserWithEmailVerificationToken(ctx context.Context, account domain.Account, token domain.Token) (domain.User, error)
+	GetUserByEmail(ctx context.Context, email string) (*domain.Account, error)
 	VerifyEmailAndAddSession(ctx context.Context, userID uuid.UUID, emailToken, refreshToken domain.Token) (*domain.User, error)
 }
 
 type SessionRepository interface {
 	AddSession(ctx context.Context, user domain.User, token domain.Token) (domain.User, error)
 	RevokeSession(ctx context.Context, userID uuid.UUID, token domain.Token) error
-	ValidateSession(ctx context.Context, token domain.Token) (domain.User, error)
+	RotateSession(ctx context.Context, oldToken, newToken domain.Token) (domain.User, error)
 }

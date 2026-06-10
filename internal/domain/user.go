@@ -6,184 +6,21 @@ import (
 	"time"
 
 	errs "github.com/Weit145/auth-startup/internal/lib/e"
+	"github.com/Weit145/auth-startup/internal/lib/valid"
 	"github.com/Weit145/auth-startup/internal/logger"
 	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
 )
 
 type User struct {
-	id              uuid.UUID
-	passwordHash    *string
-	email           string
-	name            string
-	role            string
-	emailVerifiedAt *time.Time
-}
-
-func NewUser(ctx context.Context, email, password, name string) (*User, error) {
-
-	id := uuid.New()
-
-	if email == "" {
-		return nil, logger.WrapError(ctx, fmt.Errorf("email cannot be empty"))
-	}
-
-	if password == "" {
-		return nil, logger.WrapError(ctx, fmt.Errorf("password cannot be empty"))
-	}
-
-	passwordHash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
-	if err != nil {
-		return nil, logger.WrapError(ctx, fmt.Errorf("hash password: %w", err))
-	}
-	passwordHashStr := string(passwordHash)
-
-	if name == "" {
-		return nil, logger.WrapError(ctx, fmt.Errorf("name cannot be empty"))
-	}
-
-	return &User{
-		id:           id,
-		passwordHash: &passwordHashStr,
-		email:        email,
-		name:         name,
-		role:         "user",
-	}, nil
-}
-
-func NewAdminUser(ctx context.Context, email, name, password string) (*User, error) {
-
-	id := uuid.New()
-
-	if email == "" {
-		return nil, logger.WrapError(ctx, fmt.Errorf("email cannot be empty"))
-	}
-
-	if name == "" {
-		return nil, logger.WrapError(ctx, fmt.Errorf("name cannot be empty"))
-	}
-
-	if password == "" {
-		return nil, logger.WrapError(ctx, fmt.Errorf("password cannot be empty"))
-	}
-
-	passwordHash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
-	if err != nil {
-		return nil, logger.WrapError(ctx, fmt.Errorf("hash password: %w", err))
-	}
-	passwordHashStr := string(passwordHash)
-	return &User{
-		id:           id,
-		passwordHash: &passwordHashStr,
-		email:        email,
-		name:         name,
-		role:         "admin",
-	}, nil
-}
-
-func UserFromID(ctx context.Context, id uuid.UUID, email, name, role string) (*User, error) {
-	if id == uuid.Nil {
-		return nil, logger.WrapError(ctx, fmt.Errorf("id cannot be empty"))
-	}
-
-	if email == "" {
-		return nil, logger.WrapError(ctx, fmt.Errorf("email cannot be empty"))
-	}
-
-	if name == "" {
-		return nil, logger.WrapError(ctx, fmt.Errorf("name cannot be empty"))
-	}
-
-	if role != "user" && role != "admin" {
-		return nil, logger.WrapError(ctx, fmt.Errorf("invalid role: %s", role))
-	}
-
-	return &User{
-		id:    id,
-		email: email,
-		name:  name,
-		role:  role,
-	}, nil
-}
-
-func UserNotVerification(ctx context.Context, id uuid.UUID, email, passwordHash, name, role string, emailVerifiedAt *time.Time) (*User, error) {
-
-	if id == uuid.Nil {
-		return nil, logger.WrapError(ctx, fmt.Errorf("id cannot be empty"))
-	}
-
-	if email == "" {
-		return nil, logger.WrapError(ctx, fmt.Errorf("email cannot be empty"))
-	}
-
-	if name == "" {
-		return nil, logger.WrapError(ctx, fmt.Errorf("name cannot be empty"))
-	}
-
-	if role != "user" && role != "admin" {
-		return nil, logger.WrapError(ctx, fmt.Errorf("invalid role: %s", role))
-	}
-
-	if emailVerifiedAt != nil {
-		return nil, logger.WrapError(ctx, fmt.Errorf("invalid emailVerifiedAt"))
-	}
-
-	return &User{
-		id:              id,
-		passwordHash:    &passwordHash,
-		email:           email,
-		name:            name,
-		role:            role,
-		emailVerifiedAt: emailVerifiedAt,
-	}, nil
-}
-
-func UserVerification(ctx context.Context, id uuid.UUID, email, passwordHash, name, role string, emailVerifiedAt *time.Time) (*User, error) {
-
-	if id == uuid.Nil {
-		return nil, logger.WrapError(ctx, fmt.Errorf("id cannot be empty"))
-	}
-
-	if email == "" {
-		return nil, logger.WrapError(ctx, fmt.Errorf("email cannot be empty"))
-	}
-
-	if name == "" {
-		return nil, logger.WrapError(ctx, fmt.Errorf("name cannot be empty"))
-	}
-
-	if role != "user" && role != "admin" {
-		return nil, logger.WrapError(ctx, fmt.Errorf("invalid role: %s", role))
-	}
-
-	if emailVerifiedAt == nil {
-		return nil, logger.WrapError(ctx, fmt.Errorf("invalid emailVerifiedAt"))
-	}
-
-	return &User{
-		id:              id,
-		passwordHash:    &passwordHash,
-		email:           email,
-		name:            name,
-		role:            role,
-		emailVerifiedAt: emailVerifiedAt,
-	}, nil
-}
-
-func (u *User) CheckVerifiedPassword(ctx context.Context, password string) error {
-	err := bcrypt.CompareHashAndPassword([]byte(u.PasswordHash()), []byte(password))
-	if err != nil {
-		return logger.WrapError(ctx, errs.ErrUnauthorized)
-	}
-	return nil
+	id    uuid.UUID
+	email string
+	name  string
+	role  string
 }
 
 func (u *User) ID() uuid.UUID {
 	return u.id
-}
-
-func (u *User) PasswordHash() string {
-	return *u.passwordHash
 }
 
 func (u *User) Email() string {
@@ -196,4 +33,175 @@ func (u *User) Name() string {
 
 func (u *User) Role() string {
 	return u.role
+}
+
+func NewUser(ctx context.Context, id uuid.UUID, email, name, role string) (*User, error) {
+	if id == uuid.Nil {
+		return nil, logger.WrapError(ctx, fmt.Errorf("id cannot be empty"))
+	}
+
+	email, err := valid.NormalizeEmail(ctx, email)
+	if err != nil {
+		return nil, logger.WrapError(ctx, fmt.Errorf("invalid email: %w", err))
+	}
+
+	name, err = valid.NormalizeValue(ctx, name)
+	if err != nil {
+		return nil, logger.WrapError(ctx, fmt.Errorf("invalid name: %w", err))
+	}
+
+	role, err = valid.NormalizeValue(ctx, role)
+	if err != nil {
+		return nil, logger.WrapError(ctx, fmt.Errorf("invalid role: %w", err))
+	}
+
+	if role != "user" && role != "admin" {
+		return nil, logger.WrapError(ctx, fmt.Errorf("invalid role %q: %w", role, errs.ErrInvalidInput))
+	}
+
+	return &User{
+		id:    id,
+		email: email,
+		name:  name,
+		role:  role,
+	}, nil
+}
+
+type Account struct {
+	user            User
+	passwordHash    string
+	emailVerifiedAt *time.Time
+}
+
+func (a *Account) PasswordHash() string {
+	return a.passwordHash
+}
+
+func (a *Account) User() User {
+	return a.user
+}
+
+func (a *Account) CheckVerifiedPassword(ctx context.Context, password string) error {
+	err := bcrypt.CompareHashAndPassword([]byte(a.PasswordHash()), []byte(password))
+	if err != nil {
+		return logger.WrapError(ctx, errs.ErrUnauthorized)
+	}
+	return nil
+}
+
+func NewUserAccount(ctx context.Context, email, password, name string) (*Account, error) {
+
+	id := uuid.New()
+
+	email, err := valid.NormalizeEmail(ctx, email)
+	if err != nil {
+		return nil, logger.WrapError(ctx, fmt.Errorf("invalid email: %w", err))
+	}
+
+	password, err = valid.NormalizePassword(ctx, password)
+	if err != nil {
+		return nil, logger.WrapError(ctx, fmt.Errorf("invalid password: %w", err))
+	}
+
+	passwordHash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	if err != nil {
+		return nil, logger.WrapError(ctx, fmt.Errorf("hash password: %w", err))
+	}
+	passwordHashStr := string(passwordHash)
+
+	name, err = valid.NormalizeValue(ctx, name)
+	if err != nil {
+		return nil, logger.WrapError(ctx, fmt.Errorf("invalid name: %w", err))
+	}
+
+	return &Account{
+		user: User{
+			id:    id,
+			email: email,
+			name:  name,
+			role:  "user",
+		},
+		passwordHash: passwordHashStr,
+	}, nil
+}
+
+func NewAdminAccount(ctx context.Context, email, name, password string) (*Account, error) {
+
+	id := uuid.New()
+
+	email, err := valid.NormalizeEmail(ctx, email)
+	if err != nil {
+		return nil, logger.WrapError(ctx, fmt.Errorf("invalid email: %w", err))
+	}
+
+	name, err = valid.NormalizeValue(ctx, name)
+	if err != nil {
+		return nil, logger.WrapError(ctx, fmt.Errorf("invalid name: %w", err))
+	}
+
+	password, err = valid.NormalizePassword(ctx, password)
+	if err != nil {
+		return nil, logger.WrapError(ctx, fmt.Errorf("invalid password: %w", err))
+	}
+
+	passwordHash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	if err != nil {
+		return nil, logger.WrapError(ctx, fmt.Errorf("hash password: %w", err))
+	}
+	passwordHashStr := string(passwordHash)
+	return &Account{
+		user: User{
+			id:    id,
+			email: email,
+			name:  name,
+			role:  "admin",
+		},
+		passwordHash: passwordHashStr,
+	}, nil
+}
+
+func CreateUserAccount(ctx context.Context, id uuid.UUID, email, passwordHash, name, role string, emailVerifiedAt *time.Time) (*Account, error) {
+
+	if id == uuid.Nil {
+		return nil, logger.WrapError(ctx, fmt.Errorf("id cannot be empty"))
+	}
+
+	email, err := valid.NormalizeEmail(ctx, email)
+	if err != nil {
+		return nil, logger.WrapError(ctx, fmt.Errorf("invalid email: %w", err))
+	}
+
+	passwordHash, err = valid.NormalizeValue(ctx, passwordHash)
+	if err != nil {
+		return nil, logger.WrapError(ctx, fmt.Errorf("invalid password hash: %w", err))
+	}
+
+	name, err = valid.NormalizeValue(ctx, name)
+	if err != nil {
+		return nil, logger.WrapError(ctx, fmt.Errorf("invalid name: %w", err))
+	}
+
+	role, err = valid.NormalizeValue(ctx, role)
+	if err != nil {
+		return nil, logger.WrapError(ctx, fmt.Errorf("invalid role: %w", err))
+	}
+
+	if role != "user" && role != "admin" {
+		return nil, logger.WrapError(ctx, fmt.Errorf("invalid role %q: %w", role, errs.ErrInvalidInput))
+	}
+
+	if emailVerifiedAt == nil {
+		return nil, logger.WrapError(ctx, fmt.Errorf("invalid emailVerifiedAt"))
+	}
+
+	return &Account{
+		user: User{
+			id:    id,
+			email: email,
+			name:  name,
+			role:  role,
+		},
+		passwordHash:    passwordHash,
+		emailVerifiedAt: emailVerifiedAt,
+	}, nil
 }
