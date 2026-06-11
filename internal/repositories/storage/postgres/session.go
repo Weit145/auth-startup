@@ -13,7 +13,7 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-func (r *Repository) AddSession(ctx context.Context, user domain.User, token domain.Token) (domain.User, error) {
+func (r *Repository) AddSession(ctx context.Context, user domain.User, token domain.RefreshTokenHash) (domain.User, error) {
 	tokenExpiresAt, ok := token.ExpiresAt()
 	if !ok {
 		return domain.User{}, logger.WrapError(ctx, fmt.Errorf("refresh token expiration is not set"))
@@ -49,7 +49,7 @@ func AddSessionTx(ctx context.Context, tx pgx.Tx, userID uuid.UUID, refreshToken
 	return nil
 }
 
-func (r *Repository) RevokeSession(ctx context.Context, userID uuid.UUID, token domain.Token) error {
+func (r *Repository) RevokeSession(ctx context.Context, userID uuid.UUID, token domain.RefreshTokenHash) error {
 	tx, err := r.db.Begin(ctx)
 	if err != nil {
 		return logger.WrapError(ctx, fmt.Errorf("begin revoke session tx: %w", err))
@@ -74,7 +74,7 @@ func (r *Repository) RevokeSession(ctx context.Context, userID uuid.UUID, token 
 	return nil
 }
 
-func (r *Repository) RotateSession(ctx context.Context, oldToken, newToken domain.Token) (domain.User, error) {
+func (r *Repository) RotateSession(ctx context.Context, oldToken, newToken domain.RefreshTokenHash) (domain.User, error) {
 	tx, err := r.db.Begin(ctx)
 	if err != nil {
 		return domain.User{}, logger.WrapError(ctx, fmt.Errorf("begin rotate session tx: %w", err))
@@ -114,7 +114,7 @@ func (r *Repository) RotateSession(ctx context.Context, oldToken, newToken domai
 		return domain.User{}, logger.WrapError(ctx, fmt.Errorf("rotate refresh session: %w", err))
 	}
 
-	user, err := domain.NewUser(ctx, id, email, name, role)
+	user, err := domain.NewUser(id, email, name, role)
 	if err != nil {
 		return domain.User{}, logger.WrapError(ctx, fmt.Errorf("build user from database row: %w", err))
 	}

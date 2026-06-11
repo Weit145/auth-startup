@@ -19,16 +19,20 @@ type Field struct {
 
 func MapErr(err error) error {
 	switch {
+	case errors.Is(err, context.Canceled):
+		return status.Error(codes.Canceled, "request canceled")
+	case errors.Is(err, context.DeadlineExceeded):
+		return status.Error(codes.DeadlineExceeded, "request deadline exceeded")
 	case errors.Is(err, errs.ErrUnauthorized):
-		return status.Error(codes.Unauthenticated, err.Error())
+		return status.Error(codes.Unauthenticated, "unauthorized")
 	case errors.Is(err, errs.ErrForbidden):
-		return status.Error(codes.PermissionDenied, err.Error())
+		return status.Error(codes.PermissionDenied, "forbidden")
 	case errors.Is(err, errs.ErrInvalidInput):
-		return status.Error(codes.InvalidArgument, err.Error())
+		return status.Error(codes.InvalidArgument, "invalid input")
 	case errors.Is(err, errs.ErrNotFound):
-		return status.Error(codes.NotFound, err.Error())
+		return status.Error(codes.NotFound, "not found")
 	case errors.Is(err, errs.ErrAlreadyExists):
-		return status.Error(codes.AlreadyExists, err.Error())
+		return status.Error(codes.AlreadyExists, "already exists")
 	default:
 		return status.Error(codes.Internal, "internal error")
 	}

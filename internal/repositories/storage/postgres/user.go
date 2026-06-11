@@ -13,7 +13,7 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-func (r *Repository) CreateUserWithEmailVerificationToken(ctx context.Context, account domain.Account, token domain.Token) (domain.User, error) {
+func (r *Repository) CreateUserWithEmailVerificationToken(ctx context.Context, account domain.Account, token domain.EmailVerificationTokenHash) (domain.User, error) {
 	tokenExpiresAt, ok := token.ExpiresAt()
 	if !ok {
 		return domain.User{}, logger.WrapError(ctx, fmt.Errorf("email verification token expiration is not set"))
@@ -73,7 +73,7 @@ func UpsertUnverifiedUser(ctx context.Context, tx pgx.Tx, account domain.Account
 		return domain.User{}, logger.WrapError(ctx, fmt.Errorf("upsert user: %w", err))
 	}
 
-	result, err := domain.NewUser(ctx, id, email, name, role)
+	result, err := domain.NewUser(id, email, name, role)
 	if err != nil {
 		return domain.User{}, logger.WrapError(ctx, fmt.Errorf("build user from database row: %w", err))
 	}
@@ -104,7 +104,7 @@ func (r *Repository) GetUserByEmail(ctx context.Context, email string) (*domain.
 		return nil, logger.WrapError(ctx, fmt.Errorf("query user by email: %w", err))
 	}
 
-	result, err := domain.CreateUserAccount(ctx, id, emailDB, passwordHash, name, role, &emailVerifiedAt)
+	result, err := domain.CreateUserAccount(id, emailDB, passwordHash, name, role, &emailVerifiedAt)
 	if err != nil {
 		return nil, logger.WrapError(ctx, fmt.Errorf("build user from database row: %w", err))
 	}
@@ -151,7 +151,7 @@ func GetUserByID(ctx context.Context, tx pgx.Tx, userID uuid.UUID) (*domain.User
 		return nil, logger.WrapError(ctx, fmt.Errorf("query user by id: %w", err))
 	}
 
-	result, err := domain.NewUser(ctx, id, emailDB, name, role)
+	result, err := domain.NewUser(id, emailDB, name, role)
 	if err != nil {
 		return nil, logger.WrapError(ctx, fmt.Errorf("build user from database row: %w", err))
 	}
@@ -159,7 +159,7 @@ func GetUserByID(ctx context.Context, tx pgx.Tx, userID uuid.UUID) (*domain.User
 	return result, nil
 }
 
-func (r *Repository) VerifyEmailAndAddSession(ctx context.Context, userID uuid.UUID, emailToken, refreshToken domain.Token) (*domain.User, error) {
+func (r *Repository) VerifyEmailAndAddSession(ctx context.Context, userID uuid.UUID, emailToken domain.EmailVerificationTokenHash, refreshToken domain.RefreshTokenHash) (*domain.User, error) {
 	refreshTokenExpiresAt, ok := refreshToken.ExpiresAt()
 	if !ok {
 		return nil, logger.WrapError(ctx, fmt.Errorf("refresh token expiration is not set"))

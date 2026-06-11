@@ -1,13 +1,13 @@
 package port
 
 import (
-	"context"
-
 	"github.com/Weit145/auth-startup/internal/domain"
 )
 
 type TokenProvider interface {
-	CreateJWT(ctx context.Context, user domain.User) (domain.Token, error)
-	CreateToken(ctx context.Context) (domain.Token, error)
-	HashToken(ctx context.Context, token domain.Token) (domain.Token, error)
+	CreateRefreshToken() (domain.RefreshToken, error)
+	CreateEmailVerificationToken() (domain.EmailVerificationToken, error)
+	HashRefreshToken(token domain.RefreshToken) (domain.RefreshTokenHash, error)
+	HashEmailVerificationToken(token domain.EmailVerificationToken) (domain.EmailVerificationTokenHash, error)
+	CreateJWT(user domain.User) (domain.AccessToken, error)
 }

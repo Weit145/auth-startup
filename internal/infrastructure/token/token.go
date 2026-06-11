@@ -1,7 +1,6 @@
 package token
 
 import (
-	"context"
 	"crypto/hmac"
 	"crypto/rand"
 	"crypto/sha256"
@@ -11,7 +10,6 @@ import (
 	"time"
 
 	"github.com/Weit145/auth-startup/internal/domain"
-	"github.com/Weit145/auth-startup/internal/logger"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 )
@@ -23,23 +21,39 @@ type AccessClaims struct {
 	jwt.RegisteredClaims
 }
 
-func (p *Provider) CreateToken(ctx context.Context) (domain.Token, error) {
+func (p *Provider) CreateRefreshToken() (domain.RefreshToken, error) {
 	b := make([]byte, 64)
 
 	if _, err := rand.Read(b); err != nil {
-		return domain.Token{}, logger.WrapError(ctx, fmt.Errorf("create token: %w", err))
+		return domain.RefreshToken{}, fmt.Errorf("create token: %w", err)
 	}
 	hashToken := base64.RawURLEncoding.EncodeToString(b)
 
-	token, err := domain.NewToken(ctx, hashToken, nil)
+	token, err := domain.NewRefreshToken(hashToken, nil)
 	if err != nil {
-		return domain.Token{}, logger.WrapError(ctx, fmt.Errorf("create domain token: %w", err))
+		return domain.RefreshToken{}, fmt.Errorf("create domain token: %w", err)
 	}
 
 	return token, nil
 }
 
-func (p *Provider) HashToken(ctx context.Context, token domain.Token) (domain.Token, error) {
+func (p *Provider) CreateEmailVerificationToken() (domain.EmailVerificationToken, error) {
+	b := make([]byte, 64)
+
+	if _, err := rand.Read(b); err != nil {
+		return domain.EmailVerificationToken{}, fmt.Errorf("create token: %w", err)
+	}
+	hashToken := base64.RawURLEncoding.EncodeToString(b)
+
+	token, err := domain.NewEmailVerificationToken(hashToken, nil)
+	if err != nil {
+		return domain.EmailVerificationToken{}, fmt.Errorf("create domain token: %w", err)
+	}
+
+	return token, nil
+}
+
+func (p *Provider) HashRefreshToken(token domain.RefreshToken) (domain.RefreshTokenHash, error) {
 	h := hmac.New(sha256.New, []byte(p.cfg.RefreshSecret))
 	h.Write([]byte(token.Value()))
 
@@ -49,15 +63,33 @@ func (p *Provider) HashToken(ctx context.Context, token domain.Token) (domain.To
 		expiresAt = &value
 	}
 
-	tokenHash, err := domain.NewToken(ctx, hash, expiresAt)
+	tokenHash, err := domain.NewRefreshTokenHash(hash, expiresAt)
 	if err != nil {
-		return domain.Token{}, logger.WrapError(ctx, fmt.Errorf("create domain token: %w", err))
+		return domain.RefreshTokenHash{}, fmt.Errorf("create domain token: %w", err)
 	}
 
 	return tokenHash, nil
 }
 
-func (p *Provider) CreateJWT(ctx context.Context, user domain.User) (domain.Token, error) {
+func (p *Provider) HashEmailVerificationToken(token domain.EmailVerificationToken) (domain.EmailVerificationTokenHash, error) {
+	h := hmac.New(sha256.New, []byte(p.cfg.RefreshSecret))
+	h.Write([]byte(token.Value()))
+
+	hash := hex.EncodeToString(h.Sum(nil))
+	var expiresAt *time.Time
+	if value, ok := token.ExpiresAt(); ok {
+		expiresAt = &value
+	}
+
+	tokenHash, err := domain.NewEmailVerificationTokenHash(hash, expiresAt)
+	if err != nil {
+		return domain.EmailVerificationTokenHash{}, fmt.Errorf("create domain token: %w", err)
+	}
+
+	return tokenHash, nil
+}
+
+func (p *Provider) CreateJWT(user domain.User) (domain.AccessToken, error) {
 	now := time.Now()
 
 	claims := AccessClaims{
@@ -74,19 +106,19 @@ func (p *Provider) CreateJWT(ctx context.Context, user domain.User) (domain.Toke
 	}
 
 	if p.cfg.PrivateKey == nil {
-		return domain.Token{}, logger.WrapError(ctx, fmt.Errorf("JWT private key is not configured"))
+		return domain.AccessToken{}, fmt.Errorf("JWT private key is not configured")
 	}
 
 	token := jwt.NewWithClaims(jwt.SigningMethodRS256, claims)
 
 	tokenString, err := token.SignedString(p.cfg.PrivateKey)
 	if err != nil {
-		return domain.Token{}, logger.WrapError(ctx, fmt.Errorf("failed to sign JWT: %w", err))
+		return domain.AccessToken{}, fmt.Errorf("failed to sign JWT: %w", err)
 	}
 
-	tokenDomain, err := domain.NewToken(ctx, tokenString, &claims.ExpiresAt.Time)
+	tokenDomain, err := domain.NewAccessToken(tokenString, &claims.ExpiresAt.Time)
 	if err != nil {
-		return domain.Token{}, logger.WrapError(ctx, fmt.Errorf("create domain token: %w", err))
+		return domain.AccessToken{}, fmt.Errorf("create domain token: %w", err)
 	}
 	return tokenDomain, nil
 }

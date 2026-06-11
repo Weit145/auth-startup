@@ -93,7 +93,14 @@ func run() error {
 	}
 	defer lis.Close()
 
-	grpcServer := v1.NewServer(ser)
+	grpcServer, err := v1.NewServer(ser, v1.Setting{
+		TLSCertPEM:     cfg.GRPC.TLSCertPEM,
+		TLSKeyPEM:      cfg.GRPC.TLSKeyPEM,
+		TLSClientCAPEM: cfg.GRPC.TLSClientCAPEM,
+	})
+	if err != nil {
+		return logger.WrapError(ctx, fmt.Errorf("create gRPC server: %w", err))
+	}
 	slog.Info("Init grpc server")
 
 	serverErr := make(chan error, 1)

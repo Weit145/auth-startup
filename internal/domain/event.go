@@ -1,13 +1,11 @@
 package domain
 
 import (
-	"context"
 	"fmt"
 	"time"
 
 	errs "github.com/Weit145/auth-startup/internal/lib/e"
 	"github.com/Weit145/auth-startup/internal/lib/valid"
-	"github.com/Weit145/auth-startup/internal/logger"
 	"github.com/google/uuid"
 )
 
@@ -34,23 +32,23 @@ func (e Email) ExpiresAt() time.Time {
 	return e.expiresAt
 }
 
-func NewEmail(ctx context.Context, userID uuid.UUID, email string, token Token, expiresAt time.Time) (Email, error) {
+func NewEmail(userID uuid.UUID, email string, token EmailVerificationToken, expiresAt time.Time) (Email, error) {
 	if userID == uuid.Nil {
-		return Email{}, logger.WrapError(ctx, fmt.Errorf("invalid userID: %w", errs.ErrInvalidInput))
+		return Email{}, fmt.Errorf("invalid userID: %w", errs.ErrInvalidInput)
 	}
 
-	email, err := valid.NormalizeEmail(ctx, email)
+	email, err := valid.NormalizeEmail(email)
 	if err != nil {
-		return Email{}, logger.WrapError(ctx, fmt.Errorf("invalid email: %w", err))
+		return Email{}, fmt.Errorf("invalid email: %w", err)
 	}
 
-	tokenValue, err := valid.ValidateOpaqueValue(ctx, token.Value())
+	tokenValue, err := valid.ValidateOpaqueValue(token.Value())
 	if err != nil {
-		return Email{}, logger.WrapError(ctx, fmt.Errorf("invalid token: %w", err))
+		return Email{}, fmt.Errorf("invalid token: %w", err)
 	}
 
 	if expiresAt.IsZero() {
-		return Email{}, logger.WrapError(ctx, fmt.Errorf("invalid expiresAt: %w", errs.ErrInvalidInput))
+		return Email{}, fmt.Errorf("invalid expiresAt: %w", errs.ErrInvalidInput)
 	}
 
 	return Email{

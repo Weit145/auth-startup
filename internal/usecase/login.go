@@ -19,7 +19,7 @@ type LoginService interface {
 func (s *Service) Login(ctx context.Context, email, password string) (domain.User, domain.Tokens, error) {
 	account, err := s.repo.GetUserByEmail(ctx, email)
 	if errors.Is(err, errs.ErrNotFound) {
-		return domain.User{}, domain.Tokens{}, logger.WrapError(ctx, errs.ErrUnauthorized)
+		return domain.User{}, domain.Tokens{}, logger.WrapError(ctx, fmt.Errorf("not found user: %w", errs.ErrUnauthorized))
 	}
 	if err != nil {
 		return domain.User{}, domain.Tokens{}, logger.WrapError(ctx, fmt.Errorf("get user by email: %w", err))
@@ -30,22 +30,22 @@ func (s *Service) Login(ctx context.Context, email, password string) (domain.Use
 	ctx = logger.WithLogName(ctx, user.Name())
 	ctx = logger.WithLogEmail(ctx, user.Email())
 
-	err = account.CheckVerifiedPassword(ctx, password)
+	err = account.CheckVerifiedPassword(password)
 	if err != nil {
-		return domain.User{}, domain.Tokens{}, logger.WrapError(ctx, errs.ErrUnauthorized)
+		return domain.User{}, domain.Tokens{}, logger.WrapError(ctx, fmt.Errorf("not verifiend password: %w", err))
 	}
 
-	refreshToken, err := s.tokens.CreateToken(ctx)
+	refreshToken, err := s.tokens.CreateRefreshToken()
 	if err != nil {
 		return domain.User{}, domain.Tokens{}, logger.WrapError(ctx, fmt.Errorf("create refresh token: %w", err))
 	}
 	refreshToken.CreateExpiresAt(s.cfg.RefreshTokenTTL)
-	refreshTokenHash, err := s.tokens.HashToken(ctx, refreshToken)
+	refreshTokenHash, err := s.tokens.HashRefreshToken(refreshToken)
 	if err != nil {
 		return domain.User{}, domain.Tokens{}, logger.WrapError(ctx, fmt.Errorf("hash refresh token: %w", err))
 	}
 
-	accessToken, err := s.tokens.CreateJWT(ctx, user)
+	accessToken, err := s.tokens.CreateJWT(user)
 	if err != nil {
 		return domain.User{}, domain.Tokens{}, logger.WrapError(ctx, fmt.Errorf("create access token: %w", err))
 	}
@@ -54,7 +54,7 @@ func (s *Service) Login(ctx context.Context, email, password string) (domain.Use
 	if err != nil {
 		return domain.User{}, domain.Tokens{}, logger.WrapError(ctx, fmt.Errorf("add session: %w", err))
 	}
-	tokens, err := domain.NewTokens(ctx, accessToken, refreshToken)
+	tokens, err := domain.NewTokens(accessToken, refreshToken)
 	if err != nil {
 		return domain.User{}, domain.Tokens{}, logger.WrapError(ctx, fmt.Errorf("create tokens: %w", err))
 	}
@@ -62,11 +62,11 @@ func (s *Service) Login(ctx context.Context, email, password string) (domain.Use
 }
 
 func (s *Service) Logout(ctx context.Context, userId uuid.UUID, refreshToken string) error {
-	tokenDomain, err := domain.NewToken(ctx, refreshToken, nil)
+	tokenRefreshDomain, err := domain.NewRefreshToken(refreshToken, nil)
 	if err != nil {
 		return logger.WrapError(ctx, fmt.Errorf("create token domain: %w", err))
 	}
-	refreshTokenHash, err := s.tokens.HashToken(ctx, tokenDomain)
+	refreshTokenHash, err := s.tokens.HashRefreshToken(tokenRefreshDomain)
 	if err != nil {
 		return logger.WrapError(ctx, fmt.Errorf("hash refresh token: %w", err))
 	}

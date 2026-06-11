@@ -53,7 +53,13 @@ type DB struct {
 }
 
 type GRPC struct {
-	AuthAddr string `env:"GRPC_AUTH_ADDR" envDefault:":50051"`
+	AuthAddr        string `env:"GRPC_AUTH_ADDR" envDefault:":50051"`
+	TLSCertPath     string `env:"GRPC_TLS_CERT_PATH"`
+	TLSKeyPath      string `env:"GRPC_TLS_KEY_PATH"`
+	TLSClientCAPath string `env:"GRPC_TLS_CLIENT_CA_PATH"`
+	TLSCertPEM      []byte
+	TLSKeyPEM       []byte
+	TLSClientCAPEM  []byte
 }
 
 func envOrDefault(def string, envs ...string) string {
@@ -75,6 +81,18 @@ func requiredEnv(name string) (string, error) {
 	value := strings.TrimSpace(os.Getenv(name))
 	if value == "" {
 		return "", fmt.Errorf("%s is required", name)
+	}
+
+	return value, nil
+}
+
+func readRequiredFile(path, name string) ([]byte, error) {
+	value, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("read %s %q: %w", name, path, err)
+	}
+	if len(value) == 0 {
+		return nil, fmt.Errorf("%s %q is empty", name, path)
 	}
 
 	return value, nil
@@ -145,10 +163,40 @@ func InitConfig() (Config, error) {
 		return Config{}, err
 	}
 
+	grpcTLSCertPath, err := requiredEnv("GRPC_TLS_CERT_PATH")
+	if err != nil {
+		return Config{}, err
+	}
+
+	grpcTLSKeyPath, err := requiredEnv("GRPC_TLS_KEY_PATH")
+	if err != nil {
+		return Config{}, err
+	}
+
+	grpcTLSClientCAPath, err := requiredEnv("GRPC_TLS_CLIENT_CA_PATH")
+	if err != nil {
+		return Config{}, err
+	}
+
+	grpcTLSCertPEM, err := readRequiredFile(grpcTLSCertPath, "gRPC TLS certificate")
+	if err != nil {
+		return Config{}, err
+	}
+
+	grpcTLSKeyPEM, err := readRequiredFile(grpcTLSKeyPath, "gRPC TLS private key")
+	if err != nil {
+		return Config{}, err
+	}
+
+	grpcTLSClientCAPEM, err := readRequiredFile(grpcTLSClientCAPath, "gRPC TLS client CA certificate")
+	if err != nil {
+		return Config{}, err
+	}
+
 	jwtPrivateKeyPath := envOrDefault("/run/secrets/jwt_private.pem", "JWT_PRIVATE_KEY_PATH")
 	jwtPrivateKey, err := loadJWTPrivateKey(jwtPrivateKeyPath)
 	if err != nil {
-		return Config{}, fmt.Errorf("Warning: failed to load JWT private key from %q: %v\n", jwtPrivateKeyPath, err)
+		return Config{}, fmt.Errorf("load JWT private key from %q: %w", jwtPrivateKeyPath, err)
 	}
 
 	cfg := Config{
@@ -159,7 +207,13 @@ func InitConfig() (Config, error) {
 			Address: envOrDefault("postgres://postgres:postgres@db:5432/postgres", "DATABASE_URL"),
 		},
 		GRPC: GRPC{
-			AuthAddr: envOrDefault(":50051", "GRPC_AUTH_ADDR", "AUTH_GRPC_ADDR"),
+			AuthAddr:        envOrDefault(":50051", "GRPC_AUTH_ADDR", "AUTH_GRPC_ADDR"),
+			TLSCertPath:     grpcTLSCertPath,
+			TLSKeyPath:      grpcTLSKeyPath,
+			TLSClientCAPath: grpcTLSClientCAPath,
+			TLSCertPEM:      grpcTLSCertPEM,
+			TLSKeyPEM:       grpcTLSKeyPEM,
+			TLSClientCAPEM:  grpcTLSClientCAPEM,
 		},
 		JWT: JWT{
 			PrivateKeyPath: jwtPrivateKeyPath,

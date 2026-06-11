@@ -1,13 +1,11 @@
 package domain
 
 import (
-	"context"
 	"fmt"
 	"time"
 
 	errs "github.com/Weit145/auth-startup/internal/lib/e"
 	"github.com/Weit145/auth-startup/internal/lib/valid"
-	"github.com/Weit145/auth-startup/internal/logger"
 	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
 )
@@ -35,28 +33,28 @@ func (u *User) Role() string {
 	return u.role
 }
 
-func NewUser(ctx context.Context, id uuid.UUID, email, name, role string) (*User, error) {
+func NewUser(id uuid.UUID, email, name, role string) (*User, error) {
 	if id == uuid.Nil {
-		return nil, logger.WrapError(ctx, fmt.Errorf("id cannot be empty"))
+		return nil, fmt.Errorf("id cannot be empty")
 	}
 
-	email, err := valid.NormalizeEmail(ctx, email)
+	email, err := valid.NormalizeEmail(email)
 	if err != nil {
-		return nil, logger.WrapError(ctx, fmt.Errorf("invalid email: %w", err))
+		return nil, fmt.Errorf("invalid email: %w", err)
 	}
 
-	name, err = valid.NormalizeValue(ctx, name)
+	name, err = valid.NormalizeValue(name)
 	if err != nil {
-		return nil, logger.WrapError(ctx, fmt.Errorf("invalid name: %w", err))
+		return nil, fmt.Errorf("invalid name: %w", err)
 	}
 
-	role, err = valid.NormalizeValue(ctx, role)
+	role, err = valid.NormalizeValue(role)
 	if err != nil {
-		return nil, logger.WrapError(ctx, fmt.Errorf("invalid role: %w", err))
+		return nil, fmt.Errorf("invalid role: %w", err)
 	}
 
 	if role != "user" && role != "admin" {
-		return nil, logger.WrapError(ctx, fmt.Errorf("invalid role %q: %w", role, errs.ErrInvalidInput))
+		return nil, fmt.Errorf("invalid role %q: %w", role, errs.ErrInvalidInput)
 	}
 
 	return &User{
@@ -81,37 +79,37 @@ func (a *Account) User() User {
 	return a.user
 }
 
-func (a *Account) CheckVerifiedPassword(ctx context.Context, password string) error {
+func (a *Account) CheckVerifiedPassword(password string) error {
 	err := bcrypt.CompareHashAndPassword([]byte(a.PasswordHash()), []byte(password))
 	if err != nil {
-		return logger.WrapError(ctx, errs.ErrUnauthorized)
+		return errs.ErrUnauthorized
 	}
 	return nil
 }
 
-func NewUserAccount(ctx context.Context, email, password, name string) (*Account, error) {
+func NewUserAccount(email, password, name string) (*Account, error) {
 
 	id := uuid.New()
 
-	email, err := valid.NormalizeEmail(ctx, email)
+	email, err := valid.NormalizeEmail(email)
 	if err != nil {
-		return nil, logger.WrapError(ctx, fmt.Errorf("invalid email: %w", err))
+		return nil, fmt.Errorf("invalid email: %w", err)
 	}
 
-	password, err = valid.NormalizePassword(ctx, password)
+	password, err = valid.NormalizePassword(password)
 	if err != nil {
-		return nil, logger.WrapError(ctx, fmt.Errorf("invalid password: %w", err))
+		return nil, fmt.Errorf("invalid password: %w", err)
 	}
 
 	passwordHash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 	if err != nil {
-		return nil, logger.WrapError(ctx, fmt.Errorf("hash password: %w", err))
+		return nil, fmt.Errorf("hash password: %w", err)
 	}
 	passwordHashStr := string(passwordHash)
 
-	name, err = valid.NormalizeValue(ctx, name)
+	name, err = valid.NormalizeValue(name)
 	if err != nil {
-		return nil, logger.WrapError(ctx, fmt.Errorf("invalid name: %w", err))
+		return nil, fmt.Errorf("invalid name: %w", err)
 	}
 
 	return &Account{
@@ -125,28 +123,28 @@ func NewUserAccount(ctx context.Context, email, password, name string) (*Account
 	}, nil
 }
 
-func NewAdminAccount(ctx context.Context, email, name, password string) (*Account, error) {
+func NewAdminAccount(email, name, password string) (*Account, error) {
 
 	id := uuid.New()
 
-	email, err := valid.NormalizeEmail(ctx, email)
+	email, err := valid.NormalizeEmail(email)
 	if err != nil {
-		return nil, logger.WrapError(ctx, fmt.Errorf("invalid email: %w", err))
+		return nil, fmt.Errorf("invalid email: %w", err)
 	}
 
-	name, err = valid.NormalizeValue(ctx, name)
+	name, err = valid.NormalizeValue(name)
 	if err != nil {
-		return nil, logger.WrapError(ctx, fmt.Errorf("invalid name: %w", err))
+		return nil, fmt.Errorf("invalid name: %w", err)
 	}
 
-	password, err = valid.NormalizePassword(ctx, password)
+	password, err = valid.NormalizePassword(password)
 	if err != nil {
-		return nil, logger.WrapError(ctx, fmt.Errorf("invalid password: %w", err))
+		return nil, fmt.Errorf("invalid password: %w", err)
 	}
 
 	passwordHash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 	if err != nil {
-		return nil, logger.WrapError(ctx, fmt.Errorf("hash password: %w", err))
+		return nil, fmt.Errorf("hash password: %w", err)
 	}
 	passwordHashStr := string(passwordHash)
 	return &Account{
@@ -160,38 +158,38 @@ func NewAdminAccount(ctx context.Context, email, name, password string) (*Accoun
 	}, nil
 }
 
-func CreateUserAccount(ctx context.Context, id uuid.UUID, email, passwordHash, name, role string, emailVerifiedAt *time.Time) (*Account, error) {
+func CreateUserAccount(id uuid.UUID, email, passwordHash, name, role string, emailVerifiedAt *time.Time) (*Account, error) {
 
 	if id == uuid.Nil {
-		return nil, logger.WrapError(ctx, fmt.Errorf("id cannot be empty"))
+		return nil, fmt.Errorf("id cannot be empty")
 	}
 
-	email, err := valid.NormalizeEmail(ctx, email)
+	email, err := valid.NormalizeEmail(email)
 	if err != nil {
-		return nil, logger.WrapError(ctx, fmt.Errorf("invalid email: %w", err))
+		return nil, fmt.Errorf("invalid email: %w", err)
 	}
 
-	passwordHash, err = valid.NormalizeValue(ctx, passwordHash)
+	passwordHash, err = valid.NormalizeValue(passwordHash)
 	if err != nil {
-		return nil, logger.WrapError(ctx, fmt.Errorf("invalid password hash: %w", err))
+		return nil, fmt.Errorf("invalid password hash: %w", err)
 	}
 
-	name, err = valid.NormalizeValue(ctx, name)
+	name, err = valid.NormalizeValue(name)
 	if err != nil {
-		return nil, logger.WrapError(ctx, fmt.Errorf("invalid name: %w", err))
+		return nil, fmt.Errorf("invalid name: %w", err)
 	}
 
-	role, err = valid.NormalizeValue(ctx, role)
+	role, err = valid.NormalizeValue(role)
 	if err != nil {
-		return nil, logger.WrapError(ctx, fmt.Errorf("invalid role: %w", err))
+		return nil, fmt.Errorf("invalid role: %w", err)
 	}
 
 	if role != "user" && role != "admin" {
-		return nil, logger.WrapError(ctx, fmt.Errorf("invalid role %q: %w", role, errs.ErrInvalidInput))
+		return nil, fmt.Errorf("invalid role %q: %w", role, errs.ErrInvalidInput)
 	}
 
 	if emailVerifiedAt == nil {
-		return nil, logger.WrapError(ctx, fmt.Errorf("invalid emailVerifiedAt"))
+		return nil, fmt.Errorf("invalid emailVerifiedAt")
 	}
 
 	return &Account{
