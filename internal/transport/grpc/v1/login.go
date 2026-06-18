@@ -5,6 +5,7 @@ import (
 	"errors"
 	"log/slog"
 
+	"github.com/Weit145/auth-startup/internal/domain"
 	errs "github.com/Weit145/auth-startup/internal/lib/e"
 	"github.com/Weit145/auth-startup/internal/logger"
 	mapper_err "github.com/Weit145/auth-startup/internal/transport/grpc/v1/err"
@@ -14,6 +15,11 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
+
+type LoginService interface {
+	Login(ctx context.Context, email, password string) (domain.User, domain.Tokens, error)
+	Logout(ctx context.Context, userId uuid.UUID, refreshToken string) error
+}
 
 func (s *Server) Login(ctx context.Context, req *pb.LoginRequest) (*pb.AuthResponse, error) {
 	email := req.GetEmail()

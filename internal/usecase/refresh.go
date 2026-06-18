@@ -8,10 +8,6 @@ import (
 	"github.com/Weit145/auth-startup/internal/logger"
 )
 
-type RefreshService interface {
-	RefreshToken(ctx context.Context, refreshToken string) (domain.User, domain.Tokens, error)
-}
-
 func (s *Service) RefreshToken(ctx context.Context, refreshToken string) (domain.User, domain.Tokens, error) {
 	tokenRefreshDomain, err := domain.NewRefreshToken(refreshToken, nil)
 	if err != nil {

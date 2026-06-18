@@ -203,3 +203,17 @@ func CreateUserAccount(id uuid.UUID, email, passwordHash, name, role string, ema
 		emailVerifiedAt: emailVerifiedAt,
 	}, nil
 }
+
+func HashPassword(password string) (string, error) {
+	password, err := valid.NormalizePassword(password)
+	if err != nil {
+		return "", fmt.Errorf("invalid password: %w", err)
+	}
+
+	passwordHash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	if err != nil {
+		return "", fmt.Errorf("hash password: %w", err)
+	}
+	passwordHashStr := string(passwordHash)
+	return passwordHashStr, nil
+}

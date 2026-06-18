@@ -21,13 +21,6 @@ type Service struct {
 	notifications port.NotificationPublisher
 }
 
-type Services interface {
-	CheckHealth(ctx context.Context) (bool, error)
-	RefreshService
-	LoginService
-	RegisterService
-}
-
 func NewServices(repo port.Repository, tokens port.TokenProvider, cfg Settings, notifications port.NotificationPublisher) *Service {
 	return &Service{
 		repo:          repo,

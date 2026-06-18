@@ -10,11 +10,6 @@ import (
 	"github.com/google/uuid"
 )
 
-type RegisterService interface {
-	Register(ctx context.Context, email, password, name string) error
-	ConfirmEmail(ctx context.Context, token string, userID uuid.UUID) (domain.User, domain.Tokens, error)
-}
-
 func (s *Service) Register(ctx context.Context, email, password, name string) error {
 	account, err := domain.NewUserAccount(email, password, name)
 	if err != nil {
@@ -37,6 +32,41 @@ func (s *Service) Register(ctx context.Context, email, password, name string) er
 	}
 
 	result, err := s.repo.CreateUserWithEmailVerificationToken(ctx, *account, tokenHash)
+	if err != nil {
+		return logger.WrapError(ctx, fmt.Errorf("create user with email verification token: %w", err))
+	}
+	ctx = logger.WithLogID(ctx, result.ID())
+
+	emailEvent, err := domain.NewEmail(result.ID(), result.Email(), token, tokenExpiresAt)
+	if err != nil {
+		return logger.WrapError(ctx, fmt.Errorf("create email verification event: %w", err))
+	}
+
+	err = s.notifications.PublishEvent(ctx, emailEvent, s.cfg.EmailVerificationURL)
+	if err != nil {
+		return logger.WrapError(ctx, fmt.Errorf("publish email: %w", err))
+	}
+
+	return nil
+}
+
+func (s *Service) RepeatEmail(ctx context.Context, email string) error {
+	token, err := s.tokens.CreateEmailVerificationToken()
+	if err != nil {
+		return logger.WrapError(ctx, fmt.Errorf("create token for email verification: %w", err))
+	}
+	token.CreateExpiresAt(s.cfg.EmailVerificationTokenTTL)
+	tokenExpiresAt, ok := token.ExpiresAt()
+	if !ok {
+		return logger.WrapError(ctx, fmt.Errorf("email verification token expiration is not set"))
+	}
+
+	tokenHash, err := s.tokens.HashEmailVerificationToken(token)
+	if err != nil {
+		return logger.WrapError(ctx, fmt.Errorf("hash token for email verification: %w", err))
+	}
+
+	result, err := s.repo.UpdateTokenEmail(ctx, email, tokenHash)
 	if err != nil {
 		return logger.WrapError(ctx, fmt.Errorf("create user with email verification token: %w", err))
 	}

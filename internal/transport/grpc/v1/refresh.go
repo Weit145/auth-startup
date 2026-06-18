@@ -5,12 +5,17 @@ import (
 	"errors"
 	"log/slog"
 
+	"github.com/Weit145/auth-startup/internal/domain"
 	errs "github.com/Weit145/auth-startup/internal/lib/e"
 	"github.com/Weit145/auth-startup/internal/logger"
 	mapper_err "github.com/Weit145/auth-startup/internal/transport/grpc/v1/err"
 	"github.com/Weit145/auth-startup/internal/transport/grpc/v1/mapper"
 	pb "github.com/weit145/proto-startup/auth"
 )
+
+type RefreshService interface {
+	RefreshToken(ctx context.Context, refreshToken string) (domain.User, domain.Tokens, error)
+}
 
 func (s *Server) RefreshToken(ctx context.Context, req *pb.RefreshRequest) (*pb.AuthResponse, error) {
 	refreshToken := req.GetRefreshToken()

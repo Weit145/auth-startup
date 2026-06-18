@@ -11,11 +11,6 @@ import (
 	"github.com/google/uuid"
 )
 
-type LoginService interface {
-	Login(ctx context.Context, email, password string) (domain.User, domain.Tokens, error)
-	Logout(ctx context.Context, userId uuid.UUID, refreshToken string) error
-}
-
 func (s *Service) Login(ctx context.Context, email, password string) (domain.User, domain.Tokens, error) {
 	account, err := s.repo.GetUserByEmail(ctx, email)
 	if errors.Is(err, errs.ErrNotFound) {

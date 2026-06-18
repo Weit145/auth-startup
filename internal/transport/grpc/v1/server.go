@@ -8,7 +8,6 @@ import (
 	"log/slog"
 
 	"github.com/Weit145/auth-startup/internal/logger"
-	"github.com/Weit145/auth-startup/internal/usecase"
 	pb "github.com/weit145/proto-startup/auth"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -22,12 +21,20 @@ type Setting struct {
 	TLSClientCAPEM []byte
 }
 
-type Server struct {
-	pb.UnimplementedAuthServer
-	ser usecase.Services
+type Services interface {
+	CheckHealth(ctx context.Context) (bool, error)
+	RegisterService
+	RefreshService
+	LoginService
+	PasswordService
 }
 
-func NewServer(ser usecase.Services, setting Setting) (*grpc.Server, error) {
+type Server struct {
+	pb.UnimplementedAuthServer
+	ser Services
+}
+
+func NewServer(ser Services, setting Setting) (*grpc.Server, error) {
 	clientCAs, err := ClientCertPool(setting.TLSClientCAPEM)
 	if err != nil {
 		return nil, err

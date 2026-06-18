@@ -5,6 +5,7 @@ import (
 	"errors"
 	"log/slog"
 
+	"github.com/Weit145/auth-startup/internal/domain"
 	errs "github.com/Weit145/auth-startup/internal/lib/e"
 	"github.com/Weit145/auth-startup/internal/logger"
 	mapper_err "github.com/Weit145/auth-startup/internal/transport/grpc/v1/err"
@@ -14,6 +15,12 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
+
+type RegisterService interface {
+	Register(ctx context.Context, email, password, name string) error
+	RepeatEmail(ctx context.Context, email string) error
+	ConfirmEmail(ctx context.Context, token string, userID uuid.UUID) (domain.User, domain.Tokens, error)
+}
 
 func (s *Server) Register(ctx context.Context, req *pb.RegisterRequest) (*pb.Empty, error) {
 	name := req.GetName()
@@ -50,6 +57,37 @@ func (s *Server) Register(ctx context.Context, req *pb.RegisterRequest) (*pb.Emp
 	}
 
 	slog.InfoContext(ctx, "register completed")
+
+	return &pb.Empty{}, nil
+}
+
+func (s *Server) RepeatEmail(ctx context.Context, req *pb.Email) (*pb.Empty, error) {
+	email := req.GetEmail()
+
+	if err := mapper_err.ValidateInvalidErr(ctx,
+		mapper_err.Field{Name: "email", Value: &email},
+	); err != nil {
+		return nil, err
+	}
+
+	ctx = logger.WithLogEmail(ctx, email)
+
+	if err := s.ser.RepeatEmail(ctx, email); err != nil {
+		logCtx := logger.ErrorCtx(ctx, err)
+		switch {
+		case errors.Is(err, context.Canceled), errors.Is(err, context.DeadlineExceeded):
+			slog.DebugContext(logCtx, "email repeat canceled", slog.Any("error", err))
+		case errors.Is(err, errs.ErrInvalidInput),
+			errors.Is(err, errs.ErrUnauthorized),
+			errors.Is(err, errs.ErrForbidden),
+			errors.Is(err, errs.ErrNotFound),
+			errors.Is(err, errs.ErrAlreadyExists):
+			slog.WarnContext(logCtx, "email repeat rejected", slog.Any("error", err))
+		default:
+			slog.ErrorContext(logCtx, "email repeat failed", slog.Any("error", err))
+		}
+		return nil, mapper_err.MapErr(err)
+	}
 
 	return &pb.Empty{}, nil
 }
