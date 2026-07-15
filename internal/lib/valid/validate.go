@@ -28,7 +28,7 @@ func NormalizeEmail(email string) (string, error) {
 }
 
 func NormalizePassword(password string) (string, error) {
-	if strings.TrimSpace(password) == "" || len(password) < 6 || len(password) > 72 {
+	if strings.TrimSpace(password) == "" || len(password) < 6 || len(password) > 32 {
 		return "", errs.ErrInvalidInput
 	}
 	return password, nil
