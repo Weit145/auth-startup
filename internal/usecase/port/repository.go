@@ -14,9 +14,10 @@ type Repository interface {
 }
 
 type UserRepository interface {
-	CreateUserWithEmailVerificationToken(ctx context.Context, account domain.Account, token domain.EmailVerificationTokenHash) (domain.User, error)
+	CreateEmailVerificationToken(ctx context.Context, email string, token domain.EmailVerificationTokenHash) (domain.User, error)
 	GetUserByEmail(ctx context.Context, email string) (*domain.Account, error)
-	VerifyEmailAndAddSession(ctx context.Context, userID uuid.UUID, emailToken domain.EmailVerificationTokenHash, refreshToken domain.RefreshTokenHash) (*domain.User, error)
+	CompleteRegistration(ctx context.Context, sessionID uuid.UUID, passwordHash string, refreshToken domain.RefreshTokenHash) (domain.User, error)
+	VerifyEmailAndAddShortSession(ctx context.Context, userID uuid.UUID, shortSessionToken domain.ShortSessionTokenHash, tokenEmailHash domain.EmailVerificationTokenHash) (domain.User, uuid.UUID, error)
 	UpdateTokenEmail(ctx context.Context, email string, tokenHash domain.EmailVerificationTokenHash) (domain.User, error)
 	PasswordRequest(ctx context.Context, email string, tokenHash domain.EmailVerificationTokenHash) (domain.User, error)
 	PasswordConfirm(ctx context.Context, userID uuid.UUID, tokenHash domain.EmailVerificationTokenHash, passwordHash string) (domain.User, error)

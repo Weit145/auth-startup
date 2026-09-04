@@ -30,6 +30,7 @@ type Time struct {
 	AccessTokenTTL            time.Duration `env:"ACCESS_TOKEN_EXPIRE_MINUTES" envDefault:"15"`
 	RefreshTokenTTL           time.Duration `env:"REFRESH_TOKEN_EXPIRE_DAYS" envDefault:"30"`
 	EmailVerificationTokenTTL time.Duration `env:"EMAIL_VERIFICATION_TOKEN_EXPIRE_MINUTES" envDefault:"15"`
+	ShortSessionTTL           time.Duration `env:"SHORT_SESSION_EXPIRE_MINUTES" envDefault:"10"`
 }
 
 type Kafka struct {
@@ -224,6 +225,7 @@ func InitConfig() (Config, error) {
 		Time: Time{
 			AccessTokenTTL:            envDurationOrDefault(15*time.Minute, time.Minute, "ACCESS_TOKEN_EXPIRE_MINUTES"),
 			RefreshTokenTTL:           envDurationOrDefault(30*24*time.Hour, 24*time.Hour, "REFRESH_TOKEN_EXPIRE_DAYS"),
+			ShortSessionTTL:           envDurationOrDefault(10*time.Minute, time.Minute, "SHORT_SESSION_EXPIRE_MINUTES"),
 			EmailVerificationTokenTTL: envDurationOrDefault(15*time.Minute, time.Minute, "EMAIL_VERIFICATION_TOKEN_EXPIRE_MINUTES"),
 		},
 		Kafka: Kafka{

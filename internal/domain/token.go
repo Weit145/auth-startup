@@ -6,6 +6,7 @@ import (
 
 	errs "github.com/Weit145/auth-startup/internal/lib/e"
 	"github.com/Weit145/auth-startup/internal/lib/valid"
+	"github.com/google/uuid"
 )
 
 type token struct {
@@ -13,10 +14,7 @@ type token struct {
 	expiresAt *time.Time
 }
 
-func (t token) Value() string {
-	return t.value
-}
-
+func (t token) Value() string { return t.value }
 func (t token) ExpiresAt() (time.Time, bool) {
 	if t.expiresAt == nil {
 		return time.Time{}, false
@@ -141,18 +139,65 @@ func NewEmailVerificationTokenHash(hash string, expiresAt *time.Time) (EmailVeri
 	}, nil
 }
 
+type ShortSessionToken struct {
+	id uuid.UUID
+	token
+}
+
+func NewShortSessionToken(value string, expiresAt *time.Time) (ShortSessionToken, error) {
+	value, err := valid.ValidateOpaqueValue(value)
+	if err != nil {
+		return ShortSessionToken{}, fmt.Errorf("invalid token: %w", err)
+	}
+	if expiresAt != nil && expiresAt.IsZero() {
+		return ShortSessionToken{}, fmt.Errorf("invalid expiresAt: %w", errs.ErrInvalidInput)
+	}
+
+	return ShortSessionToken{
+		id: uuid.New(),
+		token: token{
+			value:     value,
+			expiresAt: expiresAt,
+		},
+	}, nil
+}
+
+func (t ShortSessionToken) ID() uuid.UUID { return t.id }
+
+type ShortSessionTokenHash struct {
+	id uuid.UUID
+	token
+}
+
+func NewShortSessionTokenHash(id uuid.UUID, hash string, expiresAt *time.Time) (ShortSessionTokenHash, error) {
+	hash, err := valid.ValidateOpaqueValue(hash)
+	if err != nil {
+		return ShortSessionTokenHash{}, fmt.Errorf("invalid token: %w", err)
+	}
+	if id == uuid.Nil {
+		return ShortSessionTokenHash{}, fmt.Errorf("invalid id: %w", errs.ErrInvalidInput)
+	}
+	if expiresAt != nil && expiresAt.IsZero() {
+		return ShortSessionTokenHash{}, fmt.Errorf("invalid expiresAt: %w", errs.ErrInvalidInput)
+	}
+	return ShortSessionTokenHash{
+		id: id,
+		token: token{
+			value:     hash,
+			expiresAt: expiresAt,
+		},
+	}, nil
+}
+
+func (t ShortSessionTokenHash) ID() uuid.UUID { return t.id }
+
 type Tokens struct {
 	accessToken  AccessToken
 	refreshToken RefreshToken
 }
 
-func (t Tokens) AccessToken() AccessToken {
-	return t.accessToken
-}
-
-func (t Tokens) RefreshToken() RefreshToken {
-	return t.refreshToken
-}
+func (t Tokens) AccessToken() AccessToken   { return t.accessToken }
+func (t Tokens) RefreshToken() RefreshToken { return t.refreshToken }
 
 func NewTokens(accessToken AccessToken, refreshToken RefreshToken) (Tokens, error) {
 	if _, err := valid.ValidateOpaqueValue(accessToken.Value()); err != nil {

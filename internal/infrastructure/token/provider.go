@@ -6,15 +6,14 @@ import (
 )
 
 type Settings struct {
-	PrivateKey     *rsa.PrivateKey
-	RefreshSecret  string
-	AccessTokenTTL time.Duration
+	PrivateKey      *rsa.PrivateKey
+	RefreshSecret   string
+	AccessTokenTTL  time.Duration
+	ShortSessionTTL time.Duration
 }
 
 type Provider struct {
 	cfg Settings
 }
 
-func NewProvider(cfg Settings) *Provider {
-	return &Provider{cfg: cfg}
-}
+func NewProvider(cfg Settings) *Provider { return &Provider{cfg: cfg} }

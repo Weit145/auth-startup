@@ -12,6 +12,7 @@ type Settings struct {
 	EmailVerificationURL      string
 	RefreshTokenTTL           time.Duration
 	EmailVerificationTokenTTL time.Duration
+	ShortSessionTTL           time.Duration
 }
 
 type Service struct {

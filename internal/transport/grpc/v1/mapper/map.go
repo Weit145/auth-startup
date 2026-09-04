@@ -5,13 +5,18 @@ import (
 	pb "github.com/weit145/proto-startup/auth"
 )
 
+func MapDomainToConfirmResponse(accessToken domain.AccessToken) *pb.ConfirmResponse {
+	return &pb.ConfirmResponse{
+		AccessToken: accessToken.Value(),
+	}
+}
+
 func MapDomainToAuthResponse(user domain.User, tokens domain.Tokens) *pb.AuthResponse {
 	return &pb.AuthResponse{
 		User: &pb.User{
-			Id:       user.ID().String(),
-			Username: user.Name(),
-			Email:    user.Email(),
-			Role:     user.Role(),
+			Id:    user.ID().String(),
+			Email: user.Email(),
+			Role:  user.Role(),
 		},
 		AccessToken:  tokens.AccessToken().Value(),
 		RefreshToken: tokens.RefreshToken().Value(),

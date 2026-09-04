@@ -14,33 +14,54 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
-func (r *Repository) CreateUserWithEmailVerificationToken(ctx context.Context, account domain.Account, token domain.EmailVerificationTokenHash) (domain.User, error) {
+func (r *Repository) CreateEmailVerificationToken(ctx context.Context, email string, token domain.EmailVerificationTokenHash) (domain.User, error) {
 	tokenExpiresAt, ok := token.ExpiresAt()
 	if !ok {
 		return domain.User{}, logger.WrapError(ctx, fmt.Errorf("email verification token expiration is not set"))
 	}
 
+	pendingUser, err := domain.NewUser(uuid.New(), email, "user")
+	if err != nil {
+		return domain.User{}, logger.WrapError(ctx, fmt.Errorf("create pending user: %w", err))
+	}
+
 	tx, err := r.db.Begin(ctx)
 	if err != nil {
-		return domain.User{}, logger.WrapError(ctx, fmt.Errorf("begin create user tx: %w", err))
+		return domain.User{}, logger.WrapError(ctx, fmt.Errorf("begin registration request tx: %w", err))
 	}
 	defer tx.Rollback(ctx)
 
-	result, err := UpsertUnverifiedUser(ctx, tx, account)
+	const insertUserStmt = `
+		INSERT INTO users (id, email, password_hash, role)
+		VALUES ($1, $2, NULL, $3)
+		ON CONFLICT (email) DO NOTHING
+		RETURNING id, email, role
+	`
+
+	var result domain.User
+	var id uuid.UUID
+	var emailDB, role string
+	err = tx.QueryRow(ctx, insertUserStmt, pendingUser.ID(), pendingUser.Email(), pendingUser.Role()).
+		Scan(&id, &emailDB, &role)
 	if err != nil {
-		return domain.User{}, logger.WrapError(ctx, err)
+		if errors.Is(err, pgx.ErrNoRows) {
+			return domain.User{}, logger.WrapError(ctx, fmt.Errorf("create pending user: %w", errs.ErrAlreadyExists))
+		}
+		return domain.User{}, logger.WrapError(ctx, fmt.Errorf("create pending user: %w", err))
 	}
 
-	if err := InvalidateEmailVerificationTokens(ctx, tx, result.ID()); err != nil {
-		return domain.User{}, logger.WrapError(ctx, err)
+	createdUser, err := domain.NewUser(id, emailDB, role)
+	if err != nil {
+		return domain.User{}, logger.WrapError(ctx, fmt.Errorf("build pending user: %w", err))
 	}
+	result = *createdUser
 
 	if err := AddEmailVerificationToken(ctx, tx, result.ID(), token.Value(), tokenExpiresAt); err != nil {
 		return domain.User{}, logger.WrapError(ctx, err)
 	}
 
 	if err := tx.Commit(ctx); err != nil {
-		return domain.User{}, logger.WrapError(ctx, fmt.Errorf("commit create user tx: %w", err))
+		return domain.User{}, logger.WrapError(ctx, fmt.Errorf("commit registration request tx: %w", err))
 	}
 
 	return result, nil
@@ -63,6 +84,14 @@ func (r *Repository) UpdateTokenEmail(ctx context.Context, email string, tokenHa
 		return domain.User{}, logger.WrapError(ctx, err)
 	}
 
+	const invalidateRegistrationSessionsStmt = `
+		UPDATE registration_sessions
+		SET used_at = now()
+		WHERE user_id = $1 AND used_at IS NULL
+	`
+	if _, err := tx.Exec(ctx, invalidateRegistrationSessionsStmt, user.ID()); err != nil {
+		return domain.User{}, logger.WrapError(ctx, fmt.Errorf("invalidate registration sessions: %w", err))
+	}
 	if err := InvalidateEmailVerificationTokens(ctx, tx, user.ID()); err != nil {
 		return domain.User{}, logger.WrapError(ctx, err)
 	}
@@ -78,58 +107,23 @@ func (r *Repository) UpdateTokenEmail(ctx context.Context, email string, tokenHa
 	return *user, nil
 }
 
-func UpsertUnverifiedUser(ctx context.Context, tx pgx.Tx, account domain.Account) (domain.User, error) {
-	createUserStmt := `
-		INSERT INTO users (id, email, password_hash, name, role)
-		VALUES ($1, $2, $3, $4, $5)
-		ON CONFLICT (email) DO UPDATE
-		SET
-			password_hash = EXCLUDED.password_hash,
-			name = EXCLUDED.name
-		WHERE users.email_verified_at IS NULL
-		RETURNING id, email, name, role`
-
-	var (
-		id    uuid.UUID
-		name  string
-		email string
-		role  string
-	)
-
-	user := account.User()
-	err := tx.QueryRow(ctx, createUserStmt, user.ID(), user.Email(), account.PasswordHash(), user.Name(), user.Role()).
-		Scan(&id, &email, &name, &role)
-	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return domain.User{}, logger.WrapError(ctx, fmt.Errorf("upsert user: %w", errs.ErrAlreadyExists))
-		}
-		return domain.User{}, logger.WrapError(ctx, fmt.Errorf("upsert user: %w", err))
-	}
-
-	result, err := domain.NewUser(id, email, name, role)
-	if err != nil {
-		return domain.User{}, logger.WrapError(ctx, fmt.Errorf("build user from database row: %w", err))
-	}
-
-	return *result, nil
-}
-
 func (r *Repository) GetUserByEmail(ctx context.Context, email string) (*domain.Account, error) {
 	query := `
-		SELECT id, email, password_hash, name, role, email_verified_at
+		SELECT id, email, password_hash, role, email_verified_at
 		FROM users
-		WHERE email = $1 AND email_verified_at IS NOT NULL
+		WHERE email = $1
+			AND email_verified_at IS NOT NULL
+			AND password_hash IS NOT NULL
 	`
 	var (
 		id              uuid.UUID
 		emailDB         string
 		passwordHash    string
-		name            string
 		role            string
 		emailVerifiedAt time.Time
 	)
 
-	err := r.db.QueryRow(ctx, query, email).Scan(&id, &emailDB, &passwordHash, &name, &role, &emailVerifiedAt)
+	err := r.db.QueryRow(ctx, query, email).Scan(&id, &emailDB, &passwordHash, &role, &emailVerifiedAt)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, logger.WrapError(ctx, errs.ErrNotFound)
@@ -137,7 +131,7 @@ func (r *Repository) GetUserByEmail(ctx context.Context, email string) (*domain.
 		return nil, logger.WrapError(ctx, fmt.Errorf("query user by email: %w", err))
 	}
 
-	result, err := domain.CreateUserAccount(id, emailDB, passwordHash, name, role, &emailVerifiedAt)
+	result, err := domain.CreateUserAccount(id, emailDB, passwordHash, role, &emailVerifiedAt)
 	if err != nil {
 		return nil, logger.WrapError(ctx, fmt.Errorf("build user from database row: %w", err))
 	}
@@ -145,38 +139,20 @@ func (r *Repository) GetUserByEmail(ctx context.Context, email string) (*domain.
 	return result, nil
 }
 
-func VerifyUserEmail(ctx context.Context, tx pgx.Tx, userID uuid.UUID) error {
-	verifyUserStmt := `
-		UPDATE users
-		SET email_verified_at = now()
-		WHERE id = $1 AND email_verified_at IS NULL
-	`
-
-	result, err := tx.Exec(ctx, verifyUserStmt, userID)
-	if err != nil {
-		return logger.WrapError(ctx, fmt.Errorf("verify user email: %w", err))
-	}
-	if result.RowsAffected() == 0 {
-		return logger.WrapError(ctx, errs.ErrNotFound)
-	}
-
-	return nil
-}
-
-func GetUserByID(ctx context.Context, tx pgx.Tx, userID uuid.UUID) (*domain.User, error) {
+func GetPendingUserByID(ctx context.Context, tx pgx.Tx, userID uuid.UUID) (*domain.User, error) {
 	query := `
-			SELECT id, email, name, role
+			SELECT id, email, role
 			FROM users
-			WHERE id = $1 AND email_verified_at IS NOT NULL
+			WHERE id = $1
+				AND email_verified_at IS NULL
 		`
 	var (
 		id      uuid.UUID
 		emailDB string
-		name    string
 		role    string
 	)
 
-	err := tx.QueryRow(ctx, query, userID).Scan(&id, &emailDB, &name, &role)
+	err := tx.QueryRow(ctx, query, userID).Scan(&id, &emailDB, &role)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, logger.WrapError(ctx, errs.ErrNotFound)
@@ -184,7 +160,7 @@ func GetUserByID(ctx context.Context, tx pgx.Tx, userID uuid.UUID) (*domain.User
 		return nil, logger.WrapError(ctx, fmt.Errorf("query user by id: %w", err))
 	}
 
-	result, err := domain.NewUser(id, emailDB, name, role)
+	result, err := domain.NewUser(id, emailDB, role)
 	if err != nil {
 		return nil, logger.WrapError(ctx, fmt.Errorf("build user from database row: %w", err))
 	}
@@ -194,7 +170,7 @@ func GetUserByID(ctx context.Context, tx pgx.Tx, userID uuid.UUID) (*domain.User
 
 func GetUnverifiedUserByEmail(ctx context.Context, tx pgx.Tx, email string) (*domain.User, error) {
 	query := `
-		SELECT id, email, name, role
+		SELECT id, email, role
 		FROM users
 		WHERE email = $1 AND email_verified_at IS NULL
 		FOR UPDATE
@@ -202,11 +178,10 @@ func GetUnverifiedUserByEmail(ctx context.Context, tx pgx.Tx, email string) (*do
 	var (
 		id      uuid.UUID
 		emailDB string
-		name    string
 		role    string
 	)
 
-	err := tx.QueryRow(ctx, query, email).Scan(&id, &emailDB, &name, &role)
+	err := tx.QueryRow(ctx, query, email).Scan(&id, &emailDB, &role)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, logger.WrapError(ctx, errs.ErrNotFound)
@@ -214,7 +189,7 @@ func GetUnverifiedUserByEmail(ctx context.Context, tx pgx.Tx, email string) (*do
 		return nil, logger.WrapError(ctx, fmt.Errorf("query unverified user by email: %w", err))
 	}
 
-	result, err := domain.NewUser(id, emailDB, name, role)
+	result, err := domain.NewUser(id, emailDB, role)
 	if err != nil {
 		return nil, logger.WrapError(ctx, fmt.Errorf("build user from database row: %w", err))
 	}
@@ -224,7 +199,7 @@ func GetUnverifiedUserByEmail(ctx context.Context, tx pgx.Tx, email string) (*do
 
 func GetVerifiedUserByEmail(ctx context.Context, tx pgx.Tx, email string) (*domain.User, error) {
 	query := `
-		SELECT id, email, name, role
+		SELECT id, email, role
 		FROM users
 		WHERE email = $1 AND email_verified_at IS NOT NULL
 		FOR UPDATE
@@ -232,11 +207,10 @@ func GetVerifiedUserByEmail(ctx context.Context, tx pgx.Tx, email string) (*doma
 	var (
 		id      uuid.UUID
 		emailDB string
-		name    string
 		role    string
 	)
 
-	err := tx.QueryRow(ctx, query, email).Scan(&id, &emailDB, &name, &role)
+	err := tx.QueryRow(ctx, query, email).Scan(&id, &emailDB, &role)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, logger.WrapError(ctx, errs.ErrNotFound)
@@ -244,7 +218,7 @@ func GetVerifiedUserByEmail(ctx context.Context, tx pgx.Tx, email string) (*doma
 		return nil, logger.WrapError(ctx, fmt.Errorf("query verified user by email: %w", err))
 	}
 
-	result, err := domain.NewUser(id, emailDB, name, role)
+	result, err := domain.NewUser(id, emailDB, role)
 	if err != nil {
 		return nil, logger.WrapError(ctx, fmt.Errorf("build user from database row: %w", err))
 	}
@@ -257,16 +231,15 @@ func UpdateUserPassword(ctx context.Context, tx pgx.Tx, userID uuid.UUID, passwo
 		UPDATE users
 		SET password_hash = $2
 		WHERE id = $1 AND email_verified_at IS NOT NULL
-		RETURNING id, email, name, role
+		RETURNING id, email, role
 	`
 	var (
 		id    uuid.UUID
 		email string
-		name  string
 		role  string
 	)
 
-	err := tx.QueryRow(ctx, query, userID, passwordHash).Scan(&id, &email, &name, &role)
+	err := tx.QueryRow(ctx, query, userID, passwordHash).Scan(&id, &email, &role)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, logger.WrapError(ctx, errs.ErrNotFound)
@@ -274,7 +247,7 @@ func UpdateUserPassword(ctx context.Context, tx pgx.Tx, userID uuid.UUID, passwo
 		return nil, logger.WrapError(ctx, fmt.Errorf("update user password: %w", err))
 	}
 
-	result, err := domain.NewUser(id, email, name, role)
+	result, err := domain.NewUser(id, email, role)
 	if err != nil {
 		return nil, logger.WrapError(ctx, fmt.Errorf("build user from database row: %w", err))
 	}
@@ -284,7 +257,7 @@ func UpdateUserPassword(ctx context.Context, tx pgx.Tx, userID uuid.UUID, passwo
 
 func GetVerifiedUserWithActiveSession(ctx context.Context, tx pgx.Tx, userID uuid.UUID) (*domain.User, string, error) {
 	query := `
-		SELECT u.id, u.email, u.name, u.role, u.password_hash
+		SELECT u.id, u.email, u.role, u.password_hash
 		FROM users AS u
 		WHERE u.id = $1
 			AND u.email_verified_at IS NOT NULL
@@ -300,12 +273,11 @@ func GetVerifiedUserWithActiveSession(ctx context.Context, tx pgx.Tx, userID uui
 	var (
 		id           uuid.UUID
 		email        string
-		name         string
 		role         string
 		passwordHash string
 	)
 
-	err := tx.QueryRow(ctx, query, userID).Scan(&id, &email, &name, &role, &passwordHash)
+	err := tx.QueryRow(ctx, query, userID).Scan(&id, &email, &role, &passwordHash)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, "", logger.WrapError(ctx, errs.ErrUnauthorized)
@@ -313,7 +285,7 @@ func GetVerifiedUserWithActiveSession(ctx context.Context, tx pgx.Tx, userID uui
 		return nil, "", logger.WrapError(ctx, fmt.Errorf("query user with active session: %w", err))
 	}
 
-	result, err := domain.NewUser(id, email, name, role)
+	result, err := domain.NewUser(id, email, role)
 	if err != nil {
 		return nil, "", logger.WrapError(ctx, fmt.Errorf("build user from database row: %w", err))
 	}
@@ -425,39 +397,132 @@ func (r *Repository) ChangePassword(ctx context.Context, userID uuid.UUID, oldPa
 	return *updatedUser, nil
 }
 
-func (r *Repository) VerifyEmailAndAddSession(ctx context.Context, userID uuid.UUID, emailToken domain.EmailVerificationTokenHash, refreshToken domain.RefreshTokenHash) (*domain.User, error) {
-	refreshTokenExpiresAt, ok := refreshToken.ExpiresAt()
+func (r *Repository) VerifyEmailAndAddShortSession(
+	ctx context.Context,
+	userID uuid.UUID,
+	shortSessionToken domain.ShortSessionTokenHash,
+	emailToken domain.EmailVerificationTokenHash,
+) (domain.User, uuid.UUID, error) {
+	shortSessionExpiresAt, ok := shortSessionToken.ExpiresAt()
 	if !ok {
-		return nil, logger.WrapError(ctx, fmt.Errorf("refresh token expiration is not set"))
+		return domain.User{}, uuid.Nil, logger.WrapError(ctx, fmt.Errorf("short session expiration is not set"))
+	}
+	if shortSessionToken.ID() == uuid.Nil {
+		return domain.User{}, uuid.Nil, logger.WrapError(ctx, fmt.Errorf("short session id is not set: %w", errs.ErrInvalidInput))
 	}
 
 	tx, err := r.db.Begin(ctx)
 	if err != nil {
-		return nil, logger.WrapError(ctx, fmt.Errorf("begin verify email and add session tx: %w", err))
+		return domain.User{}, uuid.Nil, logger.WrapError(ctx, fmt.Errorf("begin verify email tx: %w", err))
 	}
 	defer tx.Rollback(ctx)
 
 	verifiedUserID, err := VerifyEmail(ctx, tx, userID, emailToken.Value())
 	if err != nil {
-		return nil, logger.WrapError(ctx, fmt.Errorf("use email verification token: %w", err))
+		return domain.User{}, uuid.Nil, logger.WrapError(ctx, fmt.Errorf("use email verification token: %w", err))
 	}
 
-	if err := VerifyUserEmail(ctx, tx, verifiedUserID); err != nil {
-		return nil, logger.WrapError(ctx, err)
-	}
-
-	user, err := GetUserByID(ctx, tx, verifiedUserID)
+	user, err := GetPendingUserByID(ctx, tx, verifiedUserID)
 	if err != nil {
-		return nil, logger.WrapError(ctx, err)
+		return domain.User{}, uuid.Nil, logger.WrapError(ctx, err)
 	}
 
-	if err := AddSessionTx(ctx, tx, verifiedUserID, refreshToken.Value(), refreshTokenExpiresAt); err != nil {
-		return nil, logger.WrapError(ctx, err)
+	const invalidateSessionsStmt = `
+		UPDATE registration_sessions
+		SET used_at = now()
+		WHERE user_id = $1 AND used_at IS NULL
+	`
+	if _, err := tx.Exec(ctx, invalidateSessionsStmt, verifiedUserID); err != nil {
+		return domain.User{}, uuid.Nil, logger.WrapError(ctx, fmt.Errorf("invalidate registration sessions: %w", err))
+	}
+
+	const addSessionStmt = `
+		INSERT INTO registration_sessions (id, user_id, token_hash, expires_at)
+		VALUES ($1, $2, $3, $4)
+	`
+	if _, err := tx.Exec(
+		ctx,
+		addSessionStmt,
+		shortSessionToken.ID(),
+		verifiedUserID,
+		shortSessionToken.Value(),
+		shortSessionExpiresAt,
+	); err != nil {
+		return domain.User{}, uuid.Nil, logger.WrapError(ctx, fmt.Errorf("insert registration session: %w", err))
 	}
 
 	if err := tx.Commit(ctx); err != nil {
-		return nil, logger.WrapError(ctx, fmt.Errorf("commit verify email and add session tx: %w", err))
+		return domain.User{}, uuid.Nil, logger.WrapError(ctx, fmt.Errorf("commit verify email tx: %w", err))
 	}
 
-	return user, nil
+	return *user, shortSessionToken.ID(), nil
+}
+
+func (r *Repository) CompleteRegistration(
+	ctx context.Context,
+	sessionID uuid.UUID,
+	passwordHash string,
+	refreshToken domain.RefreshTokenHash,
+) (domain.User, error) {
+	refreshTokenExpiresAt, ok := refreshToken.ExpiresAt()
+	if !ok {
+		return domain.User{}, logger.WrapError(ctx, fmt.Errorf("refresh token expiration is not set"))
+	}
+	if sessionID == uuid.Nil {
+		return domain.User{}, logger.WrapError(ctx, fmt.Errorf("registration session id is not set: %w", errs.ErrInvalidInput))
+	}
+
+	tx, err := r.db.Begin(ctx)
+	if err != nil {
+		return domain.User{}, logger.WrapError(ctx, fmt.Errorf("begin complete registration tx: %w", err))
+	}
+	defer tx.Rollback(ctx)
+
+	const consumeSessionStmt = `
+		UPDATE registration_sessions
+		SET used_at = now()
+		WHERE id = $1
+			AND used_at IS NULL
+			AND expires_at > now()
+		RETURNING user_id
+	`
+	var userID uuid.UUID
+	if err := tx.QueryRow(ctx, consumeSessionStmt, sessionID).Scan(&userID); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return domain.User{}, logger.WrapError(ctx, errs.ErrUnauthorized)
+		}
+		return domain.User{}, logger.WrapError(ctx, fmt.Errorf("consume registration session: %w", err))
+	}
+
+	const completeUserStmt = `
+		UPDATE users
+		SET password_hash = $2,
+			email_verified_at = now()
+		WHERE id = $1
+			AND email_verified_at IS NULL
+		RETURNING id, email, role
+	`
+	var id uuid.UUID
+	var email, role string
+	if err := tx.QueryRow(ctx, completeUserStmt, userID, passwordHash).Scan(&id, &email, &role); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return domain.User{}, logger.WrapError(ctx, errs.ErrAlreadyExists)
+		}
+		return domain.User{}, logger.WrapError(ctx, fmt.Errorf("complete user account: %w", err))
+	}
+
+	user, err := domain.NewUser(id, email, role)
+	if err != nil {
+		return domain.User{}, logger.WrapError(ctx, fmt.Errorf("build completed user: %w", err))
+	}
+
+	if err := AddSessionTx(ctx, tx, user.ID(), refreshToken.Value(), refreshTokenExpiresAt); err != nil {
+		return domain.User{}, logger.WrapError(ctx, err)
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return domain.User{}, logger.WrapError(ctx, fmt.Errorf("commit complete registration tx: %w", err))
+	}
+
+	return *user, nil
 }

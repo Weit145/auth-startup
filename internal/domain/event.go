@@ -16,21 +16,10 @@ type Email struct {
 	expiresAt time.Time
 }
 
-func (e Email) UserID() uuid.UUID {
-	return e.userID
-}
-
-func (e Email) Email() string {
-	return e.email
-}
-
-func (e Email) Token() string {
-	return e.token
-}
-
-func (e Email) ExpiresAt() time.Time {
-	return e.expiresAt
-}
+func (e Email) UserID() uuid.UUID    { return e.userID }
+func (e Email) Email() string        { return e.email }
+func (e Email) Token() string        { return e.token }
+func (e Email) ExpiresAt() time.Time { return e.expiresAt }
 
 func NewEmail(userID uuid.UUID, email string, token EmailVerificationToken, expiresAt time.Time) (Email, error) {
 	if userID == uuid.Nil {

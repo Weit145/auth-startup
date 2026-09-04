@@ -27,9 +27,9 @@ type keyType int
 const key = keyType(0)
 
 type logCtx struct {
-	id    uuid.UUID
-	name  string
-	email string
+	id        uuid.UUID
+	email     string
+	sessionID uuid.UUID
 }
 
 func (h *HandlerMiddlware) Handle(ctx context.Context, rec slog.Record) error {
@@ -37,11 +37,11 @@ func (h *HandlerMiddlware) Handle(ctx context.Context, rec slog.Record) error {
 		if c.email != "" {
 			rec.Add("email", c.email)
 		}
-		if c.name != "" {
-			rec.Add("name", c.name)
-		}
 		if c.id != uuid.Nil {
 			rec.Add("id", c.id.String())
+		}
+		if c.sessionID != uuid.Nil {
+			rec.Add("sessionID", c.sessionID.String())
 		}
 	}
 	return h.next.Handle(ctx, rec)
@@ -68,21 +68,20 @@ func WithLogEmail(ctx context.Context, email string) context.Context {
 	return context.WithValue(ctx, key, &logCtx{email: email})
 }
 
-func WithLogName(ctx context.Context, name string) context.Context {
-	name = strings.TrimSpace(name)
-	if c, ok := ctx.Value(key).(*logCtx); ok {
-		c.name = name
-		return context.WithValue(ctx, key, c)
-	}
-	return context.WithValue(ctx, key, &logCtx{name: name})
-}
-
 func WithLogID(ctx context.Context, id uuid.UUID) context.Context {
 	if c, ok := ctx.Value(key).(*logCtx); ok {
 		c.id = id
 		return context.WithValue(ctx, key, c)
 	}
 	return context.WithValue(ctx, key, &logCtx{id: id})
+}
+
+func WithLogSessionID(ctx context.Context, sessionID uuid.UUID) context.Context {
+	if c, ok := ctx.Value(key).(*logCtx); ok {
+		c.sessionID = sessionID
+		return context.WithValue(ctx, key, c)
+	}
+	return context.WithValue(ctx, key, &logCtx{sessionID: sessionID})
 }
 
 type errorWithLogCtx struct {

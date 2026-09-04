@@ -94,19 +94,17 @@ func (r *Repository) RotateSession(ctx context.Context, oldToken, newToken domai
 			RETURNING
 				u.id,
 				u.email,
-				u.name,
 				u.role
 		`
 
 	var (
 		id    uuid.UUID
 		email string
-		name  string
 		role  string
 	)
 
 	err = tx.QueryRow(ctx, rotateSessionStmt, oldToken.Value(), newToken.Value()).
-		Scan(&id, &email, &name, &role)
+		Scan(&id, &email, &role)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return domain.User{}, logger.WrapError(ctx, errs.ErrUnauthorized)
@@ -114,7 +112,7 @@ func (r *Repository) RotateSession(ctx context.Context, oldToken, newToken domai
 		return domain.User{}, logger.WrapError(ctx, fmt.Errorf("rotate refresh session: %w", err))
 	}
 
-	user, err := domain.NewUser(id, email, name, role)
+	user, err := domain.NewUser(id, email, role)
 	if err != nil {
 		return domain.User{}, logger.WrapError(ctx, fmt.Errorf("build user from database row: %w", err))
 	}

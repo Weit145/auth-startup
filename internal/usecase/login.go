@@ -22,7 +22,6 @@ func (s *Service) Login(ctx context.Context, email, password string) (domain.Use
 	user := account.User()
 
 	ctx = logger.WithLogID(ctx, user.ID())
-	ctx = logger.WithLogName(ctx, user.Name())
 	ctx = logger.WithLogEmail(ctx, user.Email())
 
 	err = account.CheckVerifiedPassword(password)

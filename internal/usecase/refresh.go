@@ -34,7 +34,6 @@ func (s *Service) RefreshToken(ctx context.Context, refreshToken string) (domain
 	}
 
 	ctx = logger.WithLogID(ctx, user.ID())
-	ctx = logger.WithLogName(ctx, user.Name())
 	ctx = logger.WithLogEmail(ctx, user.Email())
 
 	accessToken, err := s.tokens.CreateJWT(user)

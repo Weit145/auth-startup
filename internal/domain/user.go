@@ -13,27 +13,14 @@ import (
 type User struct {
 	id    uuid.UUID
 	email string
-	name  string
 	role  string
 }
 
-func (u *User) ID() uuid.UUID {
-	return u.id
-}
+func (u *User) ID() uuid.UUID { return u.id }
+func (u *User) Email() string { return u.email }
+func (u *User) Role() string  { return u.role }
 
-func (u *User) Email() string {
-	return u.email
-}
-
-func (u *User) Name() string {
-	return u.name
-}
-
-func (u *User) Role() string {
-	return u.role
-}
-
-func NewUser(id uuid.UUID, email, name, role string) (*User, error) {
+func NewUser(id uuid.UUID, email, role string) (*User, error) {
 	if id == uuid.Nil {
 		return nil, fmt.Errorf("id cannot be empty")
 	}
@@ -41,11 +28,6 @@ func NewUser(id uuid.UUID, email, name, role string) (*User, error) {
 	email, err := valid.NormalizeEmail(email)
 	if err != nil {
 		return nil, fmt.Errorf("invalid email: %w", err)
-	}
-
-	name, err = valid.NormalizeValue(name)
-	if err != nil {
-		return nil, fmt.Errorf("invalid name: %w", err)
 	}
 
 	role, err = valid.NormalizeValue(role)
@@ -60,7 +42,6 @@ func NewUser(id uuid.UUID, email, name, role string) (*User, error) {
 	return &User{
 		id:    id,
 		email: email,
-		name:  name,
 		role:  role,
 	}, nil
 }
@@ -71,13 +52,8 @@ type Account struct {
 	emailVerifiedAt *time.Time
 }
 
-func (a *Account) PasswordHash() string {
-	return a.passwordHash
-}
-
-func (a *Account) User() User {
-	return a.user
-}
+func (a *Account) PasswordHash() string { return a.passwordHash }
+func (a *Account) User() User           { return a.user }
 
 func (a *Account) CheckVerifiedPassword(password string) error {
 	err := bcrypt.CompareHashAndPassword([]byte(a.PasswordHash()), []byte(password))
@@ -87,7 +63,7 @@ func (a *Account) CheckVerifiedPassword(password string) error {
 	return nil
 }
 
-func NewUserAccount(email, password, name string) (*Account, error) {
+func NewUserAccount(email, password string) (*Account, error) {
 
 	id := uuid.New()
 
@@ -107,34 +83,23 @@ func NewUserAccount(email, password, name string) (*Account, error) {
 	}
 	passwordHashStr := string(passwordHash)
 
-	name, err = valid.NormalizeValue(name)
-	if err != nil {
-		return nil, fmt.Errorf("invalid name: %w", err)
-	}
-
 	return &Account{
 		user: User{
 			id:    id,
 			email: email,
-			name:  name,
 			role:  "user",
 		},
 		passwordHash: passwordHashStr,
 	}, nil
 }
 
-func NewAdminAccount(email, name, password string) (*Account, error) {
+func NewAdminAccount(email, password string) (*Account, error) {
 
 	id := uuid.New()
 
 	email, err := valid.NormalizeEmail(email)
 	if err != nil {
 		return nil, fmt.Errorf("invalid email: %w", err)
-	}
-
-	name, err = valid.NormalizeValue(name)
-	if err != nil {
-		return nil, fmt.Errorf("invalid name: %w", err)
 	}
 
 	password, err = valid.NormalizePassword(password)
@@ -151,14 +116,13 @@ func NewAdminAccount(email, name, password string) (*Account, error) {
 		user: User{
 			id:    id,
 			email: email,
-			name:  name,
 			role:  "admin",
 		},
 		passwordHash: passwordHashStr,
 	}, nil
 }
 
-func CreateUserAccount(id uuid.UUID, email, passwordHash, name, role string, emailVerifiedAt *time.Time) (*Account, error) {
+func CreateUserAccount(id uuid.UUID, email, passwordHash, role string, emailVerifiedAt *time.Time) (*Account, error) {
 
 	if id == uuid.Nil {
 		return nil, fmt.Errorf("id cannot be empty")
@@ -172,11 +136,6 @@ func CreateUserAccount(id uuid.UUID, email, passwordHash, name, role string, ema
 	passwordHash, err = valid.NormalizeValue(passwordHash)
 	if err != nil {
 		return nil, fmt.Errorf("invalid password hash: %w", err)
-	}
-
-	name, err = valid.NormalizeValue(name)
-	if err != nil {
-		return nil, fmt.Errorf("invalid name: %w", err)
 	}
 
 	role, err = valid.NormalizeValue(role)
@@ -196,7 +155,6 @@ func CreateUserAccount(id uuid.UUID, email, passwordHash, name, role string, ema
 		user: User{
 			id:    id,
 			email: email,
-			name:  name,
 			role:  role,
 		},
 		passwordHash:    passwordHash,

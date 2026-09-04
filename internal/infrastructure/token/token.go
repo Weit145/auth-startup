@@ -37,6 +37,21 @@ func (p *Provider) CreateRefreshToken() (domain.RefreshToken, error) {
 	return token, nil
 }
 
+func (p *Provider) CreateShortSessionToken() (domain.ShortSessionToken, error) {
+	b := make([]byte, 64)
+	if _, err := rand.Read(b); err != nil {
+		return domain.ShortSessionToken{}, fmt.Errorf("create short session token: %w", err)
+	}
+
+	value := base64.RawURLEncoding.EncodeToString(b)
+	token, err := domain.NewShortSessionToken(value, nil)
+	if err != nil {
+		return domain.ShortSessionToken{}, fmt.Errorf("create short session domain token: %w", err)
+	}
+
+	return token, nil
+}
+
 func (p *Provider) CreateEmailVerificationToken() (domain.EmailVerificationToken, error) {
 	b := make([]byte, 64)
 
@@ -66,6 +81,24 @@ func (p *Provider) HashRefreshToken(token domain.RefreshToken) (domain.RefreshTo
 	tokenHash, err := domain.NewRefreshTokenHash(hash, expiresAt)
 	if err != nil {
 		return domain.RefreshTokenHash{}, fmt.Errorf("create domain token: %w", err)
+	}
+
+	return tokenHash, nil
+}
+
+func (p *Provider) HashShortSessionToken(token domain.ShortSessionToken) (domain.ShortSessionTokenHash, error) {
+	h := hmac.New(sha256.New, []byte(p.cfg.RefreshSecret))
+	h.Write([]byte(token.Value()))
+
+	hash := hex.EncodeToString(h.Sum(nil))
+	var expiresAt *time.Time
+	if value, ok := token.ExpiresAt(); ok {
+		expiresAt = &value
+	}
+
+	tokenHash, err := domain.NewShortSessionTokenHash(token.ID(), hash, expiresAt)
+	if err != nil {
+		return domain.ShortSessionTokenHash{}, fmt.Errorf("create short session token hash: %w", err)
 	}
 
 	return tokenHash, nil
@@ -120,5 +153,42 @@ func (p *Provider) CreateJWT(user domain.User) (domain.AccessToken, error) {
 	if err != nil {
 		return domain.AccessToken{}, fmt.Errorf("create domain token: %w", err)
 	}
+	return tokenDomain, nil
+}
+
+func (p *Provider) CreateJWTWithSession(user domain.User, sessionID uuid.UUID) (domain.AccessToken, error) {
+	if sessionID == uuid.Nil {
+		return domain.AccessToken{}, fmt.Errorf("registration session id is empty")
+	}
+
+	now := time.Now()
+	claims := AccessClaims{
+		Role: user.Role(),
+		Type: "access",
+		RegisteredClaims: jwt.RegisteredClaims{
+			Subject:   sessionID.String(),
+			Issuer:    "auth-service",
+			Audience:  []string{"gateway"},
+			IssuedAt:  jwt.NewNumericDate(now),
+			ExpiresAt: jwt.NewNumericDate(now.Add(p.cfg.ShortSessionTTL)),
+			ID:        user.ID().String(),
+		},
+	}
+
+	if p.cfg.PrivateKey == nil {
+		return domain.AccessToken{}, fmt.Errorf("JWT private key is not configured")
+	}
+
+	token := jwt.NewWithClaims(jwt.SigningMethodRS256, claims)
+	tokenString, err := token.SignedString(p.cfg.PrivateKey)
+	if err != nil {
+		return domain.AccessToken{}, fmt.Errorf("sign registration JWT: %w", err)
+	}
+
+	tokenDomain, err := domain.NewAccessToken(tokenString, &claims.ExpiresAt.Time)
+	if err != nil {
+		return domain.AccessToken{}, fmt.Errorf("create registration access token: %w", err)
+	}
+
 	return tokenDomain, nil
 }

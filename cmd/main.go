@@ -56,7 +56,7 @@ func run() error {
 		repo, err = postgres.NewRepository(ctx, cfg.DB.Address)
 	}
 	if err != nil {
-		return logger.WrapError(ctx, fmt.Errorf("connect storage: %w", err))
+		return logger.WrapError(ctx, fmt.Errorf("Connect storage: %w", err))
 	}
 	defer repo.Close()
 	slog.Info("Init storage")
@@ -73,15 +73,17 @@ func run() error {
 	//Init infrastructure
 	slog.Info("Init infrastructure")
 	tokenProvider := tokenInfrastructure.NewProvider(tokenInfrastructure.Settings{
-		PrivateKey:     cfg.JWT.PrivateKey,
-		RefreshSecret:  cfg.JWT.RefreshSecret,
-		AccessTokenTTL: cfg.Time.AccessTokenTTL,
+		PrivateKey:      cfg.JWT.PrivateKey,
+		RefreshSecret:   cfg.JWT.RefreshSecret,
+		AccessTokenTTL:  cfg.Time.AccessTokenTTL,
+		ShortSessionTTL: cfg.Time.ShortSessionTTL,
 	})
 
 	//Init usecase
 	usecaseSettings := usecase.Settings{
 		EmailVerificationURL:      cfg.Notification.EmailVerificationURL,
 		RefreshTokenTTL:           cfg.Time.RefreshTokenTTL,
+		ShortSessionTTL:           cfg.Time.ShortSessionTTL,
 		EmailVerificationTokenTTL: cfg.Time.EmailVerificationTokenTTL,
 	}
 	ser := usecase.NewServices(repo, tokenProvider, usecaseSettings, notificationPublisher)
