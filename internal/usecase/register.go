@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/Weit145/auth-startup/internal/domain"
+	"github.com/Weit145/auth-startup/internal/domain/event"
 	"github.com/Weit145/auth-startup/internal/logger"
 	"github.com/google/uuid"
 )
@@ -30,13 +31,22 @@ func (s *Service) RegisterRequest(ctx context.Context, email string) error {
 		return logger.WrapError(ctx, fmt.Errorf("create user with email verification token: %w", err))
 	}
 
-	emailEvent, err := domain.NewEmail(user.ID(), user.Email(), token, tokenExpiresAt)
+	event, err := event.NewEvent(user.Email(), s.cfg.EmailVerificationURL, token, tokenExpiresAt, user.ID(), event.EmailVerificationRequestedType)
 	if err != nil {
 		return logger.WrapError(ctx, fmt.Errorf("create email verification event: %w", err))
 	}
 
-	err = s.notifications.PublishEvent(ctx, emailEvent, s.cfg.EmailVerificationURL)
+	err = s.repo.CreateEventOutbox(ctx, event)
 	if err != nil {
+		return logger.WrapError(ctx, fmt.Errorf("create event outbox: %w", err))
+	}
+
+	err = s.notifications.AddEvent(ctx, event)
+	if err != nil {
+		err = s.repo.SetEventError(ctx, event.EventID())
+		if err != nil {
+			return logger.WrapError(ctx, fmt.Errorf("set event error: %w", err))
+		}
 		return logger.WrapError(ctx, fmt.Errorf("publish email: %w", err))
 	}
 
@@ -145,13 +155,22 @@ func (s *Service) RepeatEmail(ctx context.Context, email string) error {
 	}
 	ctx = logger.WithLogID(ctx, result.ID())
 
-	emailEvent, err := domain.NewEmail(result.ID(), result.Email(), token, tokenExpiresAt)
+	event, err := event.NewEvent(result.Email(), s.cfg.EmailVerificationURL, token, tokenExpiresAt, result.ID(), event.ReapitEmailVerificationType)
 	if err != nil {
 		return logger.WrapError(ctx, fmt.Errorf("create email verification event: %w", err))
 	}
 
-	err = s.notifications.PublishEvent(ctx, emailEvent, s.cfg.EmailVerificationURL)
+	err = s.repo.CreateEventOutbox(ctx, event)
 	if err != nil {
+		return logger.WrapError(ctx, fmt.Errorf("create event outbox: %w", err))
+	}
+
+	err = s.notifications.AddEvent(ctx, event)
+	if err != nil {
+		err = s.repo.SetEventError(ctx, event.EventID())
+		if err != nil {
+			return logger.WrapError(ctx, fmt.Errorf("set event error: %w", err))
+		}
 		return logger.WrapError(ctx, fmt.Errorf("publish email: %w", err))
 	}
 

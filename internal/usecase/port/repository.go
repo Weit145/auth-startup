@@ -4,10 +4,12 @@ import (
 	"context"
 
 	"github.com/Weit145/auth-startup/internal/domain"
+	"github.com/Weit145/auth-startup/internal/domain/event"
 	"github.com/google/uuid"
 )
 
 type Repository interface {
+	EventRepository
 	UserRepository
 	SessionRepository
 	CheckHealth(ctx context.Context) error
@@ -28,4 +30,9 @@ type SessionRepository interface {
 	AddSession(ctx context.Context, user domain.User, token domain.RefreshTokenHash) (domain.User, error)
 	RevokeSession(ctx context.Context, userID uuid.UUID, token domain.RefreshTokenHash) error
 	RotateSession(ctx context.Context, oldToken, newToken domain.RefreshTokenHash) (domain.User, error)
+}
+
+type EventRepository interface {
+	CreateEventOutbox(ctx context.Context, event event.Event) error
+	SetEventError(ctx context.Context, eventID uuid.UUID) error
 }

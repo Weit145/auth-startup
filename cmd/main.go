@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/Weit145/auth-startup/internal/config"
+	"github.com/Weit145/auth-startup/internal/event"
 	tokenInfrastructure "github.com/Weit145/auth-startup/internal/infrastructure/token"
 	"github.com/Weit145/auth-startup/internal/logger"
 	"github.com/Weit145/auth-startup/internal/repositories/storage/postgres"
@@ -68,7 +69,14 @@ func run() error {
 			slog.ErrorContext(logger.ErrorCtx(ctx, err), "close kafka producer", slog.Any("error", err))
 		}
 	}()
-	notificationPublisher := kafkaTransport.NewNotificationPublisher(kafkaProducer)
+
+	//Init worker publisher
+	eventPool, err := event.NewWorkerPool(cfg.Worker.Num, kafkaProducer, repo)
+	if err != nil {
+		return logger.WrapError(ctx, fmt.Errorf("init worker: %w", err))
+	}
+	eventPool.Run(ctx)
+	slog.Info("Init workers", "count", cfg.Worker.Num)
 
 	//Init infrastructure
 	slog.Info("Init infrastructure")
@@ -86,7 +94,7 @@ func run() error {
 		ShortSessionTTL:           cfg.Time.ShortSessionTTL,
 		EmailVerificationTokenTTL: cfg.Time.EmailVerificationTokenTTL,
 	}
-	ser := usecase.NewServices(repo, tokenProvider, usecaseSettings, notificationPublisher)
+	ser := usecase.NewServices(repo, tokenProvider, usecaseSettings, eventPool)
 
 	//Init grpc server
 	lis, err := net.Listen("tcp", cfg.GRPC.AuthAddr)

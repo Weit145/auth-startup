@@ -20,6 +20,7 @@ type Config struct {
 	Time         Time         `envPrefix:""`
 	Kafka        Kafka        `envPrefix:""`
 	Notification Notification `envPrefix:""`
+	Worker       Worker       `envPrefix:""`
 }
 
 type Notification struct {
@@ -61,6 +62,10 @@ type GRPC struct {
 	TLSCertPEM      []byte
 	TLSKeyPEM       []byte
 	TLSClientCAPEM  []byte
+}
+
+type Worker struct {
+	Num int `env:"WORKER_NUM" envDefault:"4"`
 }
 
 func envOrDefault(def string, envs ...string) string {
@@ -200,6 +205,14 @@ func InitConfig() (Config, error) {
 		return Config{}, fmt.Errorf("load JWT private key from %q: %w", jwtPrivateKeyPath, err)
 	}
 
+	workerNum, err := strconv.Atoi(envOrDefault("4", "WORKER_NUM"))
+	if err != nil {
+		return Config{}, fmt.Errorf("parse WORKER_NUM: %w", err)
+	}
+	if workerNum < 1 {
+		return Config{}, fmt.Errorf("WORKER_NUM must be greater than zero")
+	}
+
 	cfg := Config{
 		Log: Log{
 			Level: envOrDefault("INFO", "LOG_LEVEL"),
@@ -234,6 +247,9 @@ func InitConfig() (Config, error) {
 		},
 		Notification: Notification{
 			EmailVerificationURL: envOrDefault("http://localhost:3000/", "EMAIL_VERIFICATION_URL"),
+		},
+		Worker: Worker{
+			Num: workerNum,
 		},
 	}
 	return cfg, nil
