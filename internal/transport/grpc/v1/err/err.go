@@ -46,9 +46,6 @@ func ValidateInvalidErr(ctx context.Context, fields ...Field) error {
 		}
 
 		value := *field.Value
-		if field.Name != "password" {
-			value = strings.TrimSpace(value)
-		}
 		if field.Name == "email" {
 			value = strings.ToLower(value)
 		}

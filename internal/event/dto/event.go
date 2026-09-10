@@ -13,7 +13,7 @@ import (
 
 type EmailRequested struct {
 	EventID         string    `json:"event_id"`
-	Type            TypeEvent `json:"type"`
+	Type            string    `json:"type"`
 	UserID          string    `json:"user_id"`
 	Email           string    `json:"email"`
 	VerificationURL string    `json:"verification_url"`
@@ -53,7 +53,7 @@ func NewEmailRequested(ctx context.Context, evt event.Event) (*EmailRequested, e
 
 	return &EmailRequested{
 		EventID:         evt.EventID().String(),
-		Type:            eventType,
+		Type:            eventType.String(),
 		UserID:          evt.UserID().String(),
 		Email:           evt.Email(),
 		VerificationURL: evt.VerificationURL(),

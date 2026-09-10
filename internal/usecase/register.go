@@ -26,31 +26,20 @@ func (s *Service) RegisterRequest(ctx context.Context, email string) error {
 		return logger.WrapError(ctx, fmt.Errorf("hash token for email verification: %w", err))
 	}
 
-	user, err := s.repo.CreateEmailVerificationToken(ctx, email, tokenHash)
+	pendingUser, err := domain.NewUser(uuid.New(), email, "user")
 	if err != nil {
-		return logger.WrapError(ctx, fmt.Errorf("create user with email verification token: %w", err))
+		return logger.WrapError(ctx, fmt.Errorf("create pending user: %w", err))
 	}
 
-	event, err := event.NewEvent(user.Email(), s.cfg.EmailVerificationURL, token, tokenExpiresAt, user.ID(), event.EmailVerificationRequestedType)
+	event, err := event.NewEvent(pendingUser.Email(), s.cfg.EmailVerificationURL, token, tokenExpiresAt, pendingUser.ID(), event.EmailVerificationRequestedType)
 	if err != nil {
 		return logger.WrapError(ctx, fmt.Errorf("create email verification event: %w", err))
 	}
 
-	err = s.repo.CreateEventOutbox(ctx, event)
+	err = s.repo.RegisterRequest(ctx, *pendingUser, event, tokenHash)
 	if err != nil {
-		return logger.WrapError(ctx, fmt.Errorf("create event outbox: %w", err))
+		return logger.WrapError(ctx, fmt.Errorf("RegisterRequest repo: %w", err))
 	}
-
-	err = s.notifications.AddEvent(ctx, event)
-	if err != nil {
-		err = s.repo.SetEventError(ctx, event.EventID())
-		if err != nil {
-			return logger.WrapError(ctx, fmt.Errorf("set event error: %w", err))
-		}
-		return logger.WrapError(ctx, fmt.Errorf("publish email: %w", err))
-	}
-
-	return nil
 }
 
 func (s *Service) ConfirmEmail(ctx context.Context, token string, userID uuid.UUID) (domain.AccessToken, error) {

@@ -14,59 +14,6 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
-func (r *Repository) CreateEmailVerificationToken(ctx context.Context, email string, token domain.EmailVerificationTokenHash) (domain.User, error) {
-	tokenExpiresAt, ok := token.ExpiresAt()
-	if !ok {
-		return domain.User{}, logger.WrapError(ctx, fmt.Errorf("email verification token expiration is not set"))
-	}
-
-	pendingUser, err := domain.NewUser(uuid.New(), email, "user")
-	if err != nil {
-		return domain.User{}, logger.WrapError(ctx, fmt.Errorf("create pending user: %w", err))
-	}
-
-	tx, err := r.db.Begin(ctx)
-	if err != nil {
-		return domain.User{}, logger.WrapError(ctx, fmt.Errorf("begin registration request tx: %w", err))
-	}
-	defer tx.Rollback(ctx)
-
-	const insertUserStmt = `
-		INSERT INTO users (id, email, password_hash, role)
-		VALUES ($1, $2, NULL, $3)
-		ON CONFLICT (email) DO NOTHING
-		RETURNING id, email, role
-	`
-
-	var result domain.User
-	var id uuid.UUID
-	var emailDB, role string
-	err = tx.QueryRow(ctx, insertUserStmt, pendingUser.ID(), pendingUser.Email(), pendingUser.Role()).
-		Scan(&id, &emailDB, &role)
-	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return domain.User{}, logger.WrapError(ctx, fmt.Errorf("create pending user: %w", errs.ErrAlreadyExists))
-		}
-		return domain.User{}, logger.WrapError(ctx, fmt.Errorf("create pending user: %w", err))
-	}
-
-	createdUser, err := domain.NewUser(id, emailDB, role)
-	if err != nil {
-		return domain.User{}, logger.WrapError(ctx, fmt.Errorf("build pending user: %w", err))
-	}
-	result = *createdUser
-
-	if err := AddEmailVerificationToken(ctx, tx, result.ID(), token.Value(), tokenExpiresAt); err != nil {
-		return domain.User{}, logger.WrapError(ctx, err)
-	}
-
-	if err := tx.Commit(ctx); err != nil {
-		return domain.User{}, logger.WrapError(ctx, fmt.Errorf("commit registration request tx: %w", err))
-	}
-
-	return result, nil
-}
-
 func (r *Repository) UpdateTokenEmail(ctx context.Context, email string, tokenHash domain.EmailVerificationTokenHash) (domain.User, error) {
 	tokenExpiresAt, ok := tokenHash.ExpiresAt()
 	if !ok {
@@ -358,11 +305,30 @@ func (r *Repository) PasswordConfirm(ctx context.Context, userID uuid.UUID, toke
 		return domain.User{}, logger.WrapError(ctx, err)
 	}
 
+	err = RevokeSessions(ctx, tx, userID)
+	if err != nil {
+		return domain.User{}, logger.WrapError(ctx, err)
+	}
+
 	if err := tx.Commit(ctx); err != nil {
 		return domain.User{}, logger.WrapError(ctx, fmt.Errorf("commit password confirm tx: %w", err))
 	}
 
 	return *user, nil
+}
+
+func RevokeSessions(ctx context.Context, tx pgx.Tx, userID uuid.UUID) error {
+	revokeSessionStmt := `
+		UPDATE refresh_sessions
+		SET revoked_at = now()
+		WHERE user_id = $1
+			AND revoked_at IS NULL
+	`
+	if _, err := tx.Exec(ctx, revokeSessionStmt, userID); err != nil {
+		return logger.WrapError(ctx, fmt.Errorf("revoke refresh session: %w", err))
+	}
+
+	return nil
 }
 
 func (r *Repository) ChangePassword(ctx context.Context, userID uuid.UUID, oldPassword, newPasswordHash string) (domain.User, error) {

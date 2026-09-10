@@ -9,14 +9,20 @@ import (
 )
 
 type Repository interface {
+	RegisterRepository
 	EventRepository
 	UserRepository
 	SessionRepository
 	CheckHealth(ctx context.Context) error
 }
 
+type RegisterRepository interface {
+	RegisterRequest(ctx context.Context, pendingUser domain.User, event event.Event, tokenHash domain.EmailVerificationTokenHash) error
+	ConfirmEmail(ctx context.Context, userID uuid.UUID, shortSessionToken domain.ShortSessionTokenHash, tokenEmailHash domain.EmailVerificationTokenHash) (domain.User, uuid.UUID, error)
+}
+
 type UserRepository interface {
-	CreateEmailVerificationToken(ctx context.Context, email string, token domain.EmailVerificationTokenHash) (domain.User, error)
+	// CreateEmailVerificationToken(ctx context.Context, email string, token domain.EmailVerificationTokenHash) (domain.User, error)
 	GetUserByEmail(ctx context.Context, email string) (*domain.Account, error)
 	CompleteRegistration(ctx context.Context, sessionID uuid.UUID, passwordHash string, refreshToken domain.RefreshTokenHash) (domain.User, error)
 	VerifyEmailAndAddShortSession(ctx context.Context, userID uuid.UUID, shortSessionToken domain.ShortSessionTokenHash, tokenEmailHash domain.EmailVerificationTokenHash) (domain.User, uuid.UUID, error)
@@ -33,6 +39,6 @@ type SessionRepository interface {
 }
 
 type EventRepository interface {
-	CreateEventOutbox(ctx context.Context, event event.Event) error
+	// CreateEventOutbox(ctx context.Context, event event.Event) error
 	SetEventError(ctx context.Context, eventID uuid.UUID) error
 }
