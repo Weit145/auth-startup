@@ -10,7 +10,12 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-func InsertSession(ctx context.Context, tx pgx.Tx, shortSessionToken domain.ShortSessionTokenHash, userID uuid.UUID) error {
+func InsertSession(
+	ctx context.Context,
+	tx pgx.Tx,
+	shortSessionToken domain.ShortSessionTokenHash,
+	userID uuid.UUID,
+) error {
 	const addSessionStmt = `
 		INSERT INTO registration_sessions (id, user_id, token_hash, expires_at)
 		VALUES ($1, $2, $3, $4)

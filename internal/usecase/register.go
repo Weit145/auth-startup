@@ -30,8 +30,8 @@ func (s *Service) RegisterRequest(ctx context.Context, email string) error {
 	if err != nil {
 		return logger.WrapError(ctx, fmt.Errorf("create pending user: %w", err))
 	}
-
-	event, err := event.NewEvent(pendingUser.Email(), s.cfg.EmailVerificationURL, token, tokenExpiresAt, pendingUser.ID(), event.EmailVerificationRequestedType)
+	userID := pendingUser.ID()
+	event, err := event.NewEvent(pendingUser.Email(), s.cfg.EmailVerificationURL, token, tokenExpiresAt, &userID, event.EmailVerificationRequestedType)
 	if err != nil {
 		return logger.WrapError(ctx, fmt.Errorf("create email verification event: %w", err))
 	}
@@ -40,6 +40,7 @@ func (s *Service) RegisterRequest(ctx context.Context, email string) error {
 	if err != nil {
 		return logger.WrapError(ctx, fmt.Errorf("RegisterRequest repo: %w", err))
 	}
+	return nil
 }
 
 func (s *Service) ConfirmEmail(ctx context.Context, token string, userID uuid.UUID) (domain.AccessToken, error) {
@@ -97,7 +98,7 @@ func (s *Service) RegisterComplete(ctx context.Context, sessionID uuid.UUID, pas
 	if err != nil {
 		return domain.User{}, domain.Tokens{}, logger.WrapError(ctx, fmt.Errorf("hash refresh token: %w", err))
 	}
-	domainUser, err := s.repo.CompleteRegistration(
+	domainUser, err := s.repo.RegisterComplete(
 		ctx,
 		sessionID,
 		passwordHash,
@@ -137,31 +138,24 @@ func (s *Service) RepeatEmail(ctx context.Context, email string) error {
 	if err != nil {
 		return logger.WrapError(ctx, fmt.Errorf("hash token for email verification: %w", err))
 	}
-
-	result, err := s.repo.UpdateTokenEmail(ctx, email, tokenHash)
-	if err != nil {
-		return logger.WrapError(ctx, fmt.Errorf("update email verification token: %w", err))
-	}
-	ctx = logger.WithLogID(ctx, result.ID())
-
-	event, err := event.NewEvent(result.Email(), s.cfg.EmailVerificationURL, token, tokenExpiresAt, result.ID(), event.ReapitEmailVerificationType)
+	event, err := event.NewEvent(email, s.cfg.EmailVerificationURL, token, tokenExpiresAt, nil, event.ReapitEmailVerificationType)
 	if err != nil {
 		return logger.WrapError(ctx, fmt.Errorf("create email verification event: %w", err))
 	}
 
-	err = s.repo.CreateEventOutbox(ctx, event)
+	err = s.repo.RepeatEmail(ctx, email, event, tokenHash)
 	if err != nil {
-		return logger.WrapError(ctx, fmt.Errorf("create event outbox: %w", err))
+		return logger.WrapError(ctx, fmt.Errorf("repeat email: %w", err))
 	}
 
-	err = s.notifications.AddEvent(ctx, event)
-	if err != nil {
-		err = s.repo.SetEventError(ctx, event.EventID())
-		if err != nil {
-			return logger.WrapError(ctx, fmt.Errorf("set event error: %w", err))
-		}
-		return logger.WrapError(ctx, fmt.Errorf("publish email: %w", err))
-	}
+	// err = s.notifications.AddEvent(ctx, event)
+	// if err != nil {
+	// 	err = s.repo.SetEventError(ctx, event.EventID())
+	// 	if err != nil {
+	// 		return logger.WrapError(ctx, fmt.Errorf("set event error: %w", err))
+	// 	}
+	// 	return logger.WrapError(ctx, fmt.Errorf("publish email: %w", err))
+	// }
 
 	return nil
 }

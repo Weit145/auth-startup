@@ -9,7 +9,11 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-func InsertEventOutbox(ctx context.Context, tx pgx.Tx, event event.Event) error {
+func InsertEventOutbox(
+	ctx context.Context,
+	tx pgx.Tx,
+	event event.Event,
+) error {
 	const query = `
 	INSERT INTO event_outbox (event_id, type_event, user_id, email, verification_url, expires_at, created_at, status)
 	VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`

@@ -12,7 +12,7 @@ import (
 )
 
 func (s *Service) Login(ctx context.Context, email, password string) (domain.User, domain.Tokens, error) {
-	account, err := s.repo.GetUserByEmail(ctx, email)
+	account, err := s.repo.GetAccountByEmail(ctx, email)
 	if errors.Is(err, errs.ErrNotFound) {
 		return domain.User{}, domain.Tokens{}, logger.WrapError(ctx, fmt.Errorf("not found user: %w", errs.ErrUnauthorized))
 	}

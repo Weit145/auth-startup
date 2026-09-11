@@ -32,7 +32,7 @@ func (p *WorkerPool) worker(ctx context.Context, id int) {
 }
 
 func (p *WorkerPool) process(ctx context.Context, evt event.Event) error {
-	ctx = logger.WithLogID(ctx, evt.UserID())
+	ctx = logger.WithLogID(ctx, *evt.UserID())
 	ctx = logger.WithLogEmail(ctx, evt.Email())
 
 	switch evt.TypeEvent() {

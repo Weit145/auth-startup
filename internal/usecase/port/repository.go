@@ -10,6 +10,7 @@ import (
 
 type Repository interface {
 	RegisterRepository
+	LoginRepository
 	EventRepository
 	UserRepository
 	SessionRepository
@@ -17,23 +18,63 @@ type Repository interface {
 }
 
 type RegisterRepository interface {
-	RegisterRequest(ctx context.Context, pendingUser domain.User, event event.Event, tokenHash domain.EmailVerificationTokenHash) error
-	ConfirmEmail(ctx context.Context, userID uuid.UUID, shortSessionToken domain.ShortSessionTokenHash, tokenEmailHash domain.EmailVerificationTokenHash) (domain.User, uuid.UUID, error)
+	RegisterRequest(
+		ctx context.Context,
+		pendingUser domain.User,
+		event event.Event,
+		tokenHash domain.EmailVerificationTokenHash,
+	) error
+	ConfirmEmail(
+		ctx context.Context,
+		userID uuid.UUID,
+		shortSessionToken domain.ShortSessionTokenHash,
+		tokenEmailHash domain.EmailVerificationTokenHash,
+	) (domain.User, uuid.UUID, error)
+	RegisterComplete(
+		ctx context.Context,
+		sessionID uuid.UUID,
+		passwordHash string,
+		refreshToken domain.RefreshTokenHash,
+	) (domain.User, error)
+
+	RepeatEmail(
+		ctx context.Context,
+		email string,
+		event event.Event,
+		tokenEmailHash domain.EmailVerificationTokenHash,
+	) error
+}
+
+type LoginRepository interface {
+	GetAccountByEmail(
+		ctx context.Context,
+		email string,
+	) (domain.Account, error)
+	AddSession(
+		ctx context.Context,
+		user domain.User,
+		token domain.RefreshTokenHash,
+	) (domain.User, error)
+	RevokeSession(
+		ctx context.Context,
+		userID uuid.UUID,
+		token domain.RefreshTokenHash,
+	) error
 }
 
 type UserRepository interface {
 	// CreateEmailVerificationToken(ctx context.Context, email string, token domain.EmailVerificationTokenHash) (domain.User, error)
-	GetUserByEmail(ctx context.Context, email string) (*domain.Account, error)
-	CompleteRegistration(ctx context.Context, sessionID uuid.UUID, passwordHash string, refreshToken domain.RefreshTokenHash) (domain.User, error)
+	// GetUserByEmail(ctx context.Context, email string) (domain.User, error)
+	// CompleteRegistration(ctx context.Context, sessionID uuid.UUID, passwordHash string, refreshToken domain.RefreshTokenHash) (domain.User, error)
 	VerifyEmailAndAddShortSession(ctx context.Context, userID uuid.UUID, shortSessionToken domain.ShortSessionTokenHash, tokenEmailHash domain.EmailVerificationTokenHash) (domain.User, uuid.UUID, error)
-	UpdateTokenEmail(ctx context.Context, email string, tokenHash domain.EmailVerificationTokenHash) (domain.User, error)
+	// UpdateTokenEmail(ctx context.Context, email string, tokenHash domain.EmailVerificationTokenHash) (domain.User, error)
 	PasswordRequest(ctx context.Context, email string, tokenHash domain.EmailVerificationTokenHash) (domain.User, error)
 	PasswordConfirm(ctx context.Context, userID uuid.UUID, tokenHash domain.EmailVerificationTokenHash, passwordHash string) (domain.User, error)
 	ChangePassword(ctx context.Context, userID uuid.UUID, oldPassword, newPasswordHash string) (domain.User, error)
 }
 
 type SessionRepository interface {
-	AddSession(ctx context.Context, user domain.User, token domain.RefreshTokenHash) (domain.User, error)
+	// AddSession(ctx context.Context, user domain.User, token domain.RefreshTokenHash) (domain.User, error)
 	RevokeSession(ctx context.Context, userID uuid.UUID, token domain.RefreshTokenHash) error
 	RotateSession(ctx context.Context, oldToken, newToken domain.RefreshTokenHash) (domain.User, error)
 }

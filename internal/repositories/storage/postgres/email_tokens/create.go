@@ -11,7 +11,13 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-func IsertEmailVerificationToken(ctx context.Context, tx pgx.Tx, userID uuid.UUID, tokenHash string, expiresAt time.Time) error {
+func IsertEmailVerificationToken(
+	ctx context.Context,
+	tx pgx.Tx,
+	userID uuid.UUID,
+	tokenHash string,
+	expiresAt time.Time,
+) error {
 	createVerificationTokenStmt := `
 		INSERT INTO email_verification_tokens (user_id, token_hash, expires_at)
 		VALUES ($1, $2, $3)

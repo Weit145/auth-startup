@@ -11,7 +11,12 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-func VerifyEmail(ctx context.Context, tx pgx.Tx, userID uuid.UUID, tokenHash string) (uuid.UUID, error) {
+func VerifyEmail(
+	ctx context.Context,
+	tx pgx.Tx,
+	userID uuid.UUID,
+	tokenHash string,
+) (userIDDB uuid.UUID, err error) {
 	useTokenStmt := `
 		UPDATE email_verification_tokens
 		SET used_at = now()
@@ -22,12 +27,29 @@ func VerifyEmail(ctx context.Context, tx pgx.Tx, userID uuid.UUID, tokenHash str
 		RETURNING user_id
 	`
 
-	var verifiedUserID uuid.UUID
-	if err := tx.QueryRow(ctx, useTokenStmt, userID, tokenHash).Scan(&verifiedUserID); err != nil {
+	if err := tx.QueryRow(ctx, useTokenStmt, userID, tokenHash).Scan(&userIDDB); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return uuid.Nil, logger.WrapError(ctx, errs.ErrNotFound)
 		}
 		return uuid.Nil, logger.WrapError(ctx, fmt.Errorf("use email verification token: %w", err))
 	}
-	return verifiedUserID, nil
+	return userIDDB, nil
+}
+
+func InvalidateEmailTokens(
+	ctx context.Context,
+	tx pgx.Tx,
+	userID uuid.UUID,
+) error {
+	invalidateVerificationTokensStmt := `
+		UPDATE email_verification_tokens
+		SET used_at = now()
+		WHERE user_id = $1 AND used_at IS NULL
+	`
+
+	if _, err := tx.Exec(ctx, invalidateVerificationTokensStmt, userID); err != nil {
+		return logger.WrapError(ctx, fmt.Errorf("invalidate email verification tokens: %w", err))
+	}
+
+	return nil
 }

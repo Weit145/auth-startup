@@ -13,21 +13,17 @@ import (
 type Event struct {
 	eventID         uuid.UUID
 	typeEvent       TypeEvent
-	userID          uuid.UUID
+	userID          *uuid.UUID
 	email           string
 	verificationURL string
 	expiresAt       time.Time
 	createdAt       time.Time
 }
 
-func NewEvent(email, confirmationURL string, token domain.EmailVerificationToken, expiresAt time.Time, userID uuid.UUID, typeEventObj TypeEvent) (Event, error) {
+func NewEvent(email, confirmationURL string, token domain.EmailVerificationToken, expiresAt time.Time, userID *uuid.UUID, typeEventObj TypeEvent) (Event, error) {
 	if email == "" {
 		return Event{}, fmt.Errorf("invalid email: %w", errs.ErrInvalidInput)
 	}
-	if userID == uuid.Nil {
-		return Event{}, fmt.Errorf("invalid userID: %w", errs.ErrInvalidInput)
-	}
-
 	if confirmationURL == "" {
 		return Event{}, fmt.Errorf("invalid verificationURL: %w", errs.ErrInvalidInput)
 	}
@@ -57,9 +53,13 @@ func NewEvent(email, confirmationURL string, token domain.EmailVerificationToken
 	}, nil
 }
 
+func (e *Event) AddUserID(userID uuid.UUID) {
+	e.userID = &userID
+}
+
 func (e Event) EventID() uuid.UUID      { return e.eventID }
 func (e Event) TypeEvent() TypeEvent    { return e.typeEvent }
-func (e Event) UserID() uuid.UUID       { return e.userID }
+func (e Event) UserID() *uuid.UUID      { return e.userID }
 func (e Event) Email() string           { return e.email }
 func (e Event) VerificationURL() string { return e.verificationURL }
 func (e Event) ExpiresAt() time.Time    { return e.expiresAt }
