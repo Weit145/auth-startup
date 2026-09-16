@@ -25,8 +25,8 @@ func NewEmailRequested(ctx context.Context, evt event.Event) (*EmailRequested, e
 	if evt.EventID() == uuid.Nil {
 		return nil, logger.WrapError(ctx, fmt.Errorf("eventID is empty"))
 	}
-	if evt.UserID() == &uuid.Nil {
-		return nil, logger.WrapError(ctx, fmt.Errorf("userID is nil"))
+	if evt.UserID() == nil || *evt.UserID() == uuid.Nil {
+		return nil, logger.WrapError(ctx, fmt.Errorf("userID is empty"))
 	}
 
 	if evt.Email() == "" {

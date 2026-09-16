@@ -76,6 +76,7 @@ func run() error {
 		return logger.WrapError(ctx, fmt.Errorf("init worker: %w", err))
 	}
 	eventPool.Run(ctx)
+	defer eventPool.Wait()
 	slog.Info("Init workers", "count", cfg.Worker.Num)
 
 	//Init infrastructure
@@ -94,7 +95,7 @@ func run() error {
 		ShortSessionTTL:           cfg.Time.ShortSessionTTL,
 		EmailVerificationTokenTTL: cfg.Time.EmailVerificationTokenTTL,
 	}
-	ser := usecase.NewServices(repo, tokenProvider, usecaseSettings, eventPool)
+	ser := usecase.NewServices(repo, tokenProvider, usecaseSettings)
 
 	//Init grpc server
 	lis, err := net.Listen("tcp", cfg.GRPC.AuthAddr)

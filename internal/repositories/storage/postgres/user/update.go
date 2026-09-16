@@ -33,3 +33,27 @@ func CompleteUserRegistration(
 	}
 	return userIDDB, emailDB, roleDB, nil
 }
+
+func UpdateUserPassword(
+	ctx context.Context,
+	tx pgx.Tx,
+	userID uuid.UUID,
+	passwordHash string,
+) (id uuid.UUID, email string, role string, err error) {
+	query := `
+		UPDATE users
+		SET password_hash = $2
+		WHERE id = $1 AND email_verified_at IS NOT NULL
+		RETURNING id, email, role
+	`
+
+	err = tx.QueryRow(ctx, query, userID, passwordHash).Scan(&id, &email, &role)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return uuid.Nil, "", "", logger.WrapError(ctx, errs.ErrNotFound)
+		}
+		return uuid.Nil, "", "", logger.WrapError(ctx, fmt.Errorf("update user password: %w", err))
+	}
+
+	return id, email, role, nil
+}

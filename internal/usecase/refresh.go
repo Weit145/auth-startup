@@ -8,7 +8,10 @@ import (
 	"github.com/Weit145/auth-startup/internal/logger"
 )
 
-func (s *Service) RefreshToken(ctx context.Context, refreshToken string) (domain.User, domain.Tokens, error) {
+func (s *Service) RefreshToken(
+	ctx context.Context,
+	refreshToken string,
+) (domain.User, domain.Tokens, error) {
 	tokenRefreshDomain, err := domain.NewRefreshToken(refreshToken, nil)
 	if err != nil {
 		return domain.User{}, domain.Tokens{}, logger.WrapError(ctx, fmt.Errorf("create token domain: %w", err))

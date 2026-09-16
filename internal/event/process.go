@@ -31,67 +31,36 @@ func (p *WorkerPool) worker(ctx context.Context, id int) {
 	}
 }
 
-func (p *WorkerPool) process(ctx context.Context, evt event.Event) error {
+func (p *WorkerPool) process(
+	ctx context.Context,
+	evt event.Event,
+) error {
 	ctx = logger.WithLogID(ctx, *evt.UserID())
 	ctx = logger.WithLogEmail(ctx, evt.Email())
 
-	switch evt.TypeEvent() {
-	case event.EmailVerificationRequestedType:
-		emailEvent, err := dto.NewEmailRequested(ctx, evt)
-		if err != nil {
-			return logger.WrapError(ctx, fmt.Errorf("create email verification payload: %w", err))
+	emailEvent, err := dto.NewEmailRequested(ctx, evt)
+	if err != nil {
+		if err = p.repo.SetEventError(ctx, evt.EventID()); err != nil {
+			logger.WrapError(ctx, fmt.Errorf("set event error: %w", err))
 		}
-		value, err := json.Marshal(emailEvent)
-		if err != nil {
-			return logger.WrapError(ctx, fmt.Errorf("marshal event: %w", err))
+		return logger.WrapError(ctx, fmt.Errorf("create email verification payload: %w", err))
+	}
+	value, err := json.Marshal(emailEvent)
+	if err != nil {
+		if err = p.repo.SetEventError(ctx, evt.EventID()); err != nil {
+			logger.WrapError(ctx, fmt.Errorf("set event error: %w", err))
 		}
-		if err := p.repo.SetDispatchingOutbox(ctx, evt); err != nil {
-			return logger.WrapError(ctx, fmt.Errorf("set dispatching outbox: %w", err))
+		return logger.WrapError(ctx, fmt.Errorf("marshal event: %w", err))
+	}
+
+	if err := p.req.WriteMessages(ctx, []byte(emailEvent.UserID), value); err != nil {
+		if retryErr := p.repo.ReleaseEventForRetry(ctx, evt.EventID(), err.Error()); retryErr != nil {
+			return logger.WrapError(ctx, fmt.Errorf("release event for retry: %w", retryErr))
 		}
-		if err := p.req.WriteMessages(ctx, []byte(emailEvent.UserID), value); err != nil {
-			if err := p.repo.SetEventError(ctx, evt.EventID()); err != nil {
-				return logger.WrapError(ctx, fmt.Errorf("set event error: %w", err))
-			}
-			return logger.WrapError(ctx, fmt.Errorf("publish event: %w", err))
-		}
-	case event.ResetPasswordType:
-		resetPasswordEvent, err := dto.NewEmailRequested(ctx, evt)
-		if err != nil {
-			return logger.WrapError(ctx, fmt.Errorf("create reset password event: %w", err))
-		}
-		value, err := json.Marshal(resetPasswordEvent)
-		if err != nil {
-			return logger.WrapError(ctx, fmt.Errorf("marshal event: %w", err))
-		}
-		if err := p.repo.SetDispatchingOutbox(ctx, evt); err != nil {
-			return logger.WrapError(ctx, fmt.Errorf("set dispatching outbox: %w", err))
-		}
-		if err := p.req.WriteMessages(ctx, []byte(resetPasswordEvent.UserID), value); err != nil {
-			if err := p.repo.SetEventError(ctx, evt.EventID()); err != nil {
-				return logger.WrapError(ctx, fmt.Errorf("set event error: %w", err))
-			}
-			return logger.WrapError(ctx, fmt.Errorf("publish event: %w", err))
-		}
-	case event.ReapitEmailVerificationType:
-		emailVerificationEvent, err := dto.NewEmailRequested(ctx, evt)
-		if err != nil {
-			return logger.WrapError(ctx, fmt.Errorf("create email verification event: %w", err))
-		}
-		value, err := json.Marshal(emailVerificationEvent)
-		if err != nil {
-			return logger.WrapError(ctx, fmt.Errorf("marshal event: %w", err))
-		}
-		if err := p.repo.SetDispatchingOutbox(ctx, evt); err != nil {
-			return logger.WrapError(ctx, fmt.Errorf("set dispatching outbox: %w", err))
-		}
-		if err := p.req.WriteMessages(ctx, []byte(emailVerificationEvent.UserID), value); err != nil {
-			if err := p.repo.SetEventError(ctx, evt.EventID()); err != nil {
-				return logger.WrapError(ctx, fmt.Errorf("set event error: %w", err))
-			}
-			return logger.WrapError(ctx, fmt.Errorf("publish event: %w", err))
-		}
-	default:
-		return logger.WrapError(ctx, fmt.Errorf("unknown event type: %q", evt.TypeEvent().String()))
+		return logger.WrapError(ctx, fmt.Errorf("publish event: %w", err))
+	}
+	if err := p.repo.SetEventPublished(ctx, evt.EventID()); err != nil {
+		return logger.WrapError(ctx, fmt.Errorf("set event published: %w", err))
 	}
 	return nil
 }

@@ -3,7 +3,9 @@ package event
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"sync"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -16,8 +18,10 @@ type KafkaRequest interface {
 }
 
 type Repository interface {
-	SetDispatchingOutbox(ctx context.Context, event event.Event) error
 	SetEventError(ctx context.Context, eventID uuid.UUID) error
+	ClaimPendingOutbox(ctx context.Context, limit int) ([]event.Event, error)
+	ReleaseEventForRetry(ctx context.Context, eventID uuid.UUID, lastError string) error
+	SetEventPublished(ctx context.Context, eventID uuid.UUID) error
 }
 
 type job struct {
@@ -33,7 +37,11 @@ type WorkerPool struct {
 	done <-chan struct{}
 }
 
-func NewWorkerPool(num int, req KafkaRequest, repo Repository) (*WorkerPool, error) {
+func NewWorkerPool(
+	num int,
+	req KafkaRequest,
+	repo Repository,
+) (*WorkerPool, error) {
 	if num < 1 {
 		return nil, fmt.Errorf("worker count must be positive")
 	}
@@ -58,27 +66,39 @@ func (p *WorkerPool) Run(ctx context.Context) {
 		p.wg.Add(1)
 		go p.worker(ctx, id)
 	}
+	p.wg.Add(1)
+	go p.runPoller(ctx)
 }
 
-func (p *WorkerPool) AddEvent(ctx context.Context, event event.Event) error {
-	select {
-	case <-p.done:
-		return logger.WrapError(ctx, fmt.Errorf("add event to stopped worker pool"))
-	default:
+func (p *WorkerPool) runPoller(ctx context.Context) {
+	defer p.wg.Done()
+
+	timer := time.NewTimer(0)
+	defer timer.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+
+		case <-timer.C:
+			count, err := p.poller(ctx)
+
+			if count == 0 || err != nil {
+				timer.Reset(pollInterval)
+			} else {
+				timer.Reset(0)
+			}
+
+			if err != nil {
+				if ctx.Err() != nil {
+					return
+				}
+				slog.ErrorContext(
+					logger.ErrorCtx(ctx, err),
+					"failed to poll outbox",
+				)
+			}
+		}
 	}
-
-	queuedJob := job{event: event}
-
-	select {
-	case p.jobs <- queuedJob:
-		return nil
-	case <-p.done:
-		return logger.WrapError(ctx, fmt.Errorf("add event to stopped worker pool"))
-	case <-ctx.Done():
-		return logger.WrapError(ctx, fmt.Errorf("add event to worker pool: %w", ctx.Err()))
-	}
-}
-
-func (p *WorkerPool) Wait() {
-	p.wg.Wait()
 }

@@ -21,12 +21,12 @@ func (r *Repository) GetAccountByEmail(
 	}
 	defer tx.Rollback(ctx)
 
-	userID, emailDB, role, passwordDB, err := user_repo.GetAccountByEmailForUpdate(ctx, tx, email)
+	userID, emailDB, role, passwordDB, emailVerifiedAt, err := user_repo.GetAccountByEmailForUpdate(ctx, tx, email)
 	if err != nil {
 		return domain.Account{}, logger.WrapError(ctx, fmt.Errorf("get user by email for update: %w", err))
 	}
 
-	account, err := domain.CreateUserAccount(userID, emailDB, passwordDB, role, nil)
+	account, err := domain.CreateUserAccount(userID, emailDB, passwordDB, role, &emailVerifiedAt)
 	if err != nil {
 		return domain.Account{}, logger.WrapError(ctx, fmt.Errorf("new account: %w", err))
 	}

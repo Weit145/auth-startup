@@ -12,6 +12,7 @@ CREATE TABLE event_outbox (
 		CHECK (status IN (
 			'error',
 			'dispatching',
-			'pending'
+			'pending',
+			'published'
         ))
 );

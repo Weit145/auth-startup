@@ -16,18 +16,20 @@ type Settings struct {
 }
 
 type Service struct {
-	repo          port.Repository
-	tokens        port.TokenProvider
-	cfg           Settings
-	notifications port.NotificationPublisher
+	repo   port.Repository
+	tokens port.TokenProvider
+	cfg    Settings
 }
 
-func NewServices(repo port.Repository, tokens port.TokenProvider, cfg Settings, notifications port.NotificationPublisher) *Service {
+func NewServices(
+	repo port.Repository,
+	tokens port.TokenProvider,
+	cfg Settings,
+) *Service {
 	return &Service{
-		repo:          repo,
-		tokens:        tokens,
-		cfg:           cfg,
-		notifications: notifications,
+		repo:   repo,
+		tokens: tokens,
+		cfg:    cfg,
 	}
 }
 

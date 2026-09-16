@@ -18,7 +18,7 @@ func InsertEventOutbox(
 	INSERT INTO event_outbox (event_id, type_event, user_id, email, verification_url, expires_at, created_at, status)
 	VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`
 
-	_, err := tx.Exec(ctx, query, event.EventID(), event.TypeEvent(), event.UserID(), event.Email(), event.VerificationURL(), event.ExpiresAt(), event.CreatedAt(), "pending")
+	_, err := tx.Exec(ctx, query, event.EventID(), event.TypeEvent().String(), event.UserID(), event.Email(), event.VerificationURL(), event.ExpiresAt(), event.CreatedAt(), "pending")
 	if err != nil {
 		return logger.WrapError(ctx, fmt.Errorf("exec create event outbox query: %w", err))
 	}

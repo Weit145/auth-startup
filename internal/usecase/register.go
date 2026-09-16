@@ -10,7 +10,10 @@ import (
 	"github.com/google/uuid"
 )
 
-func (s *Service) RegisterRequest(ctx context.Context, email string) error {
+func (s *Service) RegisterRequest(
+	ctx context.Context,
+	email string,
+) error {
 	token, err := s.tokens.CreateEmailVerificationToken()
 	if err != nil {
 		return logger.WrapError(ctx, fmt.Errorf("create token for email verification: %w", err))
@@ -43,7 +46,11 @@ func (s *Service) RegisterRequest(ctx context.Context, email string) error {
 	return nil
 }
 
-func (s *Service) ConfirmEmail(ctx context.Context, token string, userID uuid.UUID) (domain.AccessToken, error) {
+func (s *Service) ConfirmEmail(
+	ctx context.Context,
+	token string,
+	userID uuid.UUID,
+) (domain.AccessToken, error) {
 	tokenEmailDomain, err := domain.NewEmailVerificationToken(token, nil)
 	if err != nil {
 		return domain.AccessToken{}, logger.WrapError(ctx, fmt.Errorf("create token domain: %w", err))
@@ -61,7 +68,7 @@ func (s *Service) ConfirmEmail(ctx context.Context, token string, userID uuid.UU
 	if err != nil {
 		return domain.AccessToken{}, logger.WrapError(ctx, fmt.Errorf("hash short session token: %w", err))
 	}
-	user, sessionID, err := s.repo.VerifyEmailAndAddShortSession(
+	user, sessionID, err := s.repo.ConfirmEmail(
 		ctx,
 		userID,
 		shortSessionTokenHash,
@@ -83,7 +90,11 @@ func (s *Service) ConfirmEmail(ctx context.Context, token string, userID uuid.UU
 	return accessToken, nil
 }
 
-func (s *Service) RegisterComplete(ctx context.Context, sessionID uuid.UUID, password string) (domain.User, domain.Tokens, error) {
+func (s *Service) RegisterComplete(
+	ctx context.Context,
+	sessionID uuid.UUID,
+	password string,
+) (domain.User, domain.Tokens, error) {
 	passwordHash, err := domain.HashPassword(password)
 	if err != nil {
 		return domain.User{}, domain.Tokens{}, logger.WrapError(ctx, fmt.Errorf("hash password: %w", err))
@@ -123,7 +134,10 @@ func (s *Service) RegisterComplete(ctx context.Context, sessionID uuid.UUID, pas
 	return domainUser, tokens, nil
 }
 
-func (s *Service) RepeatEmail(ctx context.Context, email string) error {
+func (s *Service) RepeatEmail(
+	ctx context.Context,
+	email string,
+) error {
 	token, err := s.tokens.CreateEmailVerificationToken()
 	if err != nil {
 		return logger.WrapError(ctx, fmt.Errorf("create token for email verification: %w", err))
@@ -147,15 +161,6 @@ func (s *Service) RepeatEmail(ctx context.Context, email string) error {
 	if err != nil {
 		return logger.WrapError(ctx, fmt.Errorf("repeat email: %w", err))
 	}
-
-	// err = s.notifications.AddEvent(ctx, event)
-	// if err != nil {
-	// 	err = s.repo.SetEventError(ctx, event.EventID())
-	// 	if err != nil {
-	// 		return logger.WrapError(ctx, fmt.Errorf("set event error: %w", err))
-	// 	}
-	// 	return logger.WrapError(ctx, fmt.Errorf("publish email: %w", err))
-	// }
 
 	return nil
 }

@@ -29,7 +29,7 @@ func VerifyEmail(
 
 	if err := tx.QueryRow(ctx, useTokenStmt, userID, tokenHash).Scan(&userIDDB); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return uuid.Nil, logger.WrapError(ctx, errs.ErrNotFound)
+			return uuid.Nil, logger.WrapError(ctx, errs.ErrUnauthorized)
 		}
 		return uuid.Nil, logger.WrapError(ctx, fmt.Errorf("use email verification token: %w", err))
 	}

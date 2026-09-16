@@ -11,7 +11,10 @@ import (
 	"github.com/google/uuid"
 )
 
-func (s *Service) Login(ctx context.Context, email, password string) (domain.User, domain.Tokens, error) {
+func (s *Service) Login(
+	ctx context.Context,
+	email, password string,
+) (domain.User, domain.Tokens, error) {
 	account, err := s.repo.GetAccountByEmail(ctx, email)
 	if errors.Is(err, errs.ErrNotFound) {
 		return domain.User{}, domain.Tokens{}, logger.WrapError(ctx, fmt.Errorf("not found user: %w", errs.ErrUnauthorized))
@@ -55,7 +58,11 @@ func (s *Service) Login(ctx context.Context, email, password string) (domain.Use
 	return result, tokens, nil
 }
 
-func (s *Service) Logout(ctx context.Context, userId uuid.UUID, refreshToken string) error {
+func (s *Service) Logout(
+	ctx context.Context,
+	userId uuid.UUID,
+	refreshToken string,
+) error {
 	tokenRefreshDomain, err := domain.NewRefreshToken(refreshToken, nil)
 	if err != nil {
 		return logger.WrapError(ctx, fmt.Errorf("create token domain: %w", err))

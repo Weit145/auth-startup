@@ -188,7 +188,9 @@ func (r *Repository) RepeatEmail(
 		return logger.WrapError(ctx, fmt.Errorf("create email verification token: %w", err))
 	}
 
-	event.AddUserID(userID)
+	if err := event.BindUserID(domainUser.ID()); err != nil {
+		return logger.WrapError(ctx, fmt.Errorf("bind user ID: %w", err))
+	}
 
 	err = outbox.InsertEventOutbox(ctx, tx, event)
 	if err != nil {
