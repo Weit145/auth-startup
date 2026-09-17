@@ -38,7 +38,10 @@ type AccessToken struct {
 	token
 }
 
-func NewAccessToken(value string, expiresAt *time.Time) (AccessToken, error) {
+func NewAccessToken(
+	value string,
+	expiresAt *time.Time,
+) (AccessToken, error) {
 	value, err := valid.ValidateOpaqueValue(value)
 	if err != nil {
 		return AccessToken{}, fmt.Errorf("invalid token: %w", err)
@@ -59,7 +62,10 @@ type RefreshToken struct {
 	token
 }
 
-func NewRefreshToken(value string, expiresAt *time.Time) (RefreshToken, error) {
+func NewRefreshToken(
+	value string,
+	expiresAt *time.Time,
+) (RefreshToken, error) {
 	value, err := valid.ValidateOpaqueValue(value)
 	if err != nil {
 		return RefreshToken{}, fmt.Errorf("invalid token: %w", err)
@@ -80,7 +86,10 @@ type RefreshTokenHash struct {
 	token
 }
 
-func NewRefreshTokenHash(hash string, expiresAt *time.Time) (RefreshTokenHash, error) {
+func NewRefreshTokenHash(
+	hash string,
+	expiresAt *time.Time,
+) (RefreshTokenHash, error) {
 	hash, err := valid.ValidateOpaqueValue(hash)
 	if err != nil {
 		return RefreshTokenHash{}, fmt.Errorf("invalid token: %w", err)
@@ -101,7 +110,10 @@ type EmailVerificationToken struct {
 	token
 }
 
-func NewEmailVerificationToken(value string, expiresAt *time.Time) (EmailVerificationToken, error) {
+func NewEmailVerificationToken(
+	value string,
+	expiresAt *time.Time,
+) (EmailVerificationToken, error) {
 	value, err := valid.ValidateOpaqueValue(value)
 	if err != nil {
 		return EmailVerificationToken{}, fmt.Errorf("invalid token: %w", err)
@@ -122,7 +134,10 @@ type EmailVerificationTokenHash struct {
 	token
 }
 
-func NewEmailVerificationTokenHash(hash string, expiresAt *time.Time) (EmailVerificationTokenHash, error) {
+func NewEmailVerificationTokenHash(
+	hash string,
+	expiresAt *time.Time,
+) (EmailVerificationTokenHash, error) {
 	hash, err := valid.ValidateOpaqueValue(hash)
 	if err != nil {
 		return EmailVerificationTokenHash{}, fmt.Errorf("invalid token: %w", err)
@@ -144,7 +159,10 @@ type ShortSessionToken struct {
 	token
 }
 
-func NewShortSessionToken(value string, expiresAt *time.Time) (ShortSessionToken, error) {
+func NewShortSessionToken(
+	value string,
+	expiresAt *time.Time,
+) (ShortSessionToken, error) {
 	value, err := valid.ValidateOpaqueValue(value)
 	if err != nil {
 		return ShortSessionToken{}, fmt.Errorf("invalid token: %w", err)
@@ -169,7 +187,11 @@ type ShortSessionTokenHash struct {
 	token
 }
 
-func NewShortSessionTokenHash(id uuid.UUID, hash string, expiresAt *time.Time) (ShortSessionTokenHash, error) {
+func NewShortSessionTokenHash(
+	id uuid.UUID,
+	hash string,
+	expiresAt *time.Time,
+) (ShortSessionTokenHash, error) {
 	hash, err := valid.ValidateOpaqueValue(hash)
 	if err != nil {
 		return ShortSessionTokenHash{}, fmt.Errorf("invalid token: %w", err)
@@ -199,7 +221,10 @@ type Tokens struct {
 func (t Tokens) AccessToken() AccessToken   { return t.accessToken }
 func (t Tokens) RefreshToken() RefreshToken { return t.refreshToken }
 
-func NewTokens(accessToken AccessToken, refreshToken RefreshToken) (Tokens, error) {
+func NewTokens(
+	accessToken AccessToken,
+	refreshToken RefreshToken,
+) (Tokens, error) {
 	if _, err := valid.ValidateOpaqueValue(accessToken.Value()); err != nil {
 		return Tokens{}, fmt.Errorf("invalid access token: %w", err)
 	}

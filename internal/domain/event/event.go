@@ -33,13 +33,20 @@ func NewEvent(
 	if confirmationURL == "" {
 		return Event{}, fmt.Errorf("invalid verificationURL: %w", errs.ErrInvalidInput)
 	}
+	if token.Value() == "" {
+		return Event{}, fmt.Errorf("invalid token: %w", errs.ErrInvalidInput)
+	}
 	if expiresAt.IsZero() {
 		return Event{}, fmt.Errorf("invalid expiresAt: %w", errs.ErrInvalidInput)
 	}
 
+	if typeEventObj.String() == "" {
+		return Event{}, fmt.Errorf("invalid typeEventObj: %w", errs.ErrInvalidInput)
+	}
+
 	verificationURL, err := url.Parse(confirmationURL)
 	if err != nil || verificationURL.Scheme == "" || verificationURL.Host == "" {
-		return Event{}, fmt.Errorf("invalid confirmation URL: %q", confirmationURL)
+		return Event{}, fmt.Errorf("invalid confirmation URL: %q : %w", confirmationURL, errs.ErrInvalidInput)
 	}
 	query := verificationURL.Query()
 	query.Set("token", token.Value())

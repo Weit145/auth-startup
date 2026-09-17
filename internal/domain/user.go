@@ -20,7 +20,11 @@ func (u *User) ID() uuid.UUID { return u.id }
 func (u *User) Email() string { return u.email }
 func (u *User) Role() string  { return u.role }
 
-func NewUser(id uuid.UUID, email, role string) (*User, error) {
+func NewUser(
+	id uuid.UUID,
+	email,
+	role string,
+) (*User, error) {
 	if id == uuid.Nil {
 		return nil, fmt.Errorf("id cannot be empty: %w", errs.ErrInvalidInput)
 	}
@@ -63,7 +67,10 @@ func (a *Account) CheckVerifiedPassword(password string) error {
 	return nil
 }
 
-func NewUserAccount(email, password string) (*Account, error) {
+func NewUserAccount(
+	email,
+	password string,
+) (*Account, error) {
 
 	id := uuid.New()
 
@@ -93,7 +100,10 @@ func NewUserAccount(email, password string) (*Account, error) {
 	}, nil
 }
 
-func NewAdminAccount(email, password string) (*Account, error) {
+func NewAdminAccount(
+	email,
+	password string,
+) (*Account, error) {
 
 	id := uuid.New()
 
@@ -122,7 +132,13 @@ func NewAdminAccount(email, password string) (*Account, error) {
 	}, nil
 }
 
-func CreateUserAccount(id uuid.UUID, email, passwordHash, role string, emailVerifiedAt *time.Time) (*Account, error) {
+func CreateUserAccount(
+	id uuid.UUID,
+	email,
+	passwordHash,
+	role string,
+	emailVerifiedAt *time.Time,
+) (*Account, error) {
 
 	if id == uuid.Nil {
 		return nil, fmt.Errorf("id cannot be empty: %w", errs.ErrInvalidInput)
