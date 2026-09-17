@@ -22,7 +22,7 @@ func (u *User) Role() string  { return u.role }
 
 func NewUser(id uuid.UUID, email, role string) (*User, error) {
 	if id == uuid.Nil {
-		return nil, fmt.Errorf("id cannot be empty")
+		return nil, fmt.Errorf("id cannot be empty: %w", errs.ErrInvalidInput)
 	}
 
 	email, err := valid.NormalizeEmail(email)
@@ -125,7 +125,7 @@ func NewAdminAccount(email, password string) (*Account, error) {
 func CreateUserAccount(id uuid.UUID, email, passwordHash, role string, emailVerifiedAt *time.Time) (*Account, error) {
 
 	if id == uuid.Nil {
-		return nil, fmt.Errorf("id cannot be empty")
+		return nil, fmt.Errorf("id cannot be empty: %w", errs.ErrInvalidInput)
 	}
 
 	email, err := valid.NormalizeEmail(email)
@@ -148,7 +148,7 @@ func CreateUserAccount(id uuid.UUID, email, passwordHash, role string, emailVeri
 	}
 
 	if emailVerifiedAt == nil {
-		return nil, fmt.Errorf("invalid emailVerifiedAt")
+		return nil, fmt.Errorf("invalid emailVerifiedAt: %w", errs.ErrInvalidInput)
 	}
 
 	return &Account{
