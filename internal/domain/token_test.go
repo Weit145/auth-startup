@@ -42,8 +42,10 @@ func TestRefreshToken(t *testing.T) {
 	}
 
 	for _, tc := range cases {
+		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
-			tc := tc
+			t.Parallel()
+
 			_, err := domain.NewRefreshToken(
 				tc.value,
 				tc.expiresAt,
@@ -101,8 +103,9 @@ func TestAccessToken(t *testing.T) {
 	}
 
 	for _, tc := range cases {
+		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
-			tc := tc
+			t.Parallel()
 			_, err := domain.NewAccessToken(
 				tc.value,
 				tc.expiresAt,
@@ -149,8 +152,9 @@ func TestEmailVerificationToken(t *testing.T) {
 	}
 
 	for _, tc := range cases {
+		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
-			tc := tc
+			t.Parallel()
 			_, err := domain.NewEmailVerificationToken(
 				tc.value,
 				tc.expiresAt,
@@ -207,8 +211,9 @@ func TestShortSessionToken(t *testing.T) {
 	}
 
 	for _, tc := range cases {
+		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
-			tc := tc
+			t.Parallel()
 			_, err := domain.NewShortSessionToken(
 				tc.value,
 				tc.expiresAt,
@@ -267,9 +272,9 @@ func TestShortSessionTokenHash(t *testing.T) {
 	}
 
 	for _, tc := range cases {
+		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
-			tc := tc
-
+			t.Parallel()
 			_, err := domain.NewShortSessionTokenHash(
 				tc.sessionID,
 				tc.value,
@@ -330,9 +335,9 @@ func TestNewTokens(t *testing.T) {
 	}
 
 	for _, tc := range cases {
+		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
-			tc := tc
-
+			t.Parallel()
 			tokens, err := domain.NewTokens(
 				tc.access,
 				tc.refresh,

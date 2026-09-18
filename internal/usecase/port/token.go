@@ -5,6 +5,7 @@ import (
 	"github.com/google/uuid"
 )
 
+//go:generate go run github.com/vektra/mockery/v2@v2.53.5 --name=TokenProvider
 type TokenProvider interface {
 	CreateRefreshToken() (domain.RefreshToken, error)
 	CreateShortSessionToken() (domain.ShortSessionToken, error)

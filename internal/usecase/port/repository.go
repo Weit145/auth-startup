@@ -8,6 +8,7 @@ import (
 	"github.com/google/uuid"
 )
 
+//go:generate go run github.com/vektra/mockery/v2@v2.53.5 --name=Repository
 type Repository interface {
 	RegisterRepository
 	LoginRepository

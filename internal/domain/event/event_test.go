@@ -109,6 +109,7 @@ func TestNewEvent(t *testing.T) {
 	for _, tc := range cases {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			ev, err := event.NewEvent(
 				tc.email,
 				tc.confirmationURL,
@@ -269,6 +270,7 @@ func TestRestoreEvent(t *testing.T) {
 	for _, tc := range cases {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			ev, err := event.RestoreEvent(
 				tc.eventID,
 				tc.typeEvent,
@@ -359,6 +361,7 @@ func TestBindUserID(t *testing.T) {
 	for _, tc := range cases {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			err := tc.eve.BindUserID(tc.userID)
 			if !errors.Is(err, tc.waitError) {
 				t.Fatalf("error bind user id: %v, wait %v",

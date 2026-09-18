@@ -146,7 +146,9 @@ func TestCreateUserAccountDomain(t *testing.T) {
 	}
 
 	for _, tc := range cases {
+		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			account, err := domain.CreateUserAccount(
 				tc.id,
 				tc.email,
@@ -170,7 +172,6 @@ func TestCreateUserAccountDomain(t *testing.T) {
 }
 
 func TestNewUserAccountDomain(t *testing.T) {
-
 	cases := []struct {
 		name     string
 		email    string
@@ -221,7 +222,9 @@ func TestNewUserAccountDomain(t *testing.T) {
 	}
 
 	for _, tc := range cases {
+		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			var account *domain.Account
 			var err error
 			switch tc.role {
