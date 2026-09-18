@@ -7,6 +7,7 @@ import (
 
 	"github.com/Weit145/auth-startup/internal/domain"
 	errs "github.com/Weit145/auth-startup/internal/lib/e"
+	"github.com/Weit145/auth-startup/internal/lib/valid"
 	"github.com/google/uuid"
 )
 
@@ -27,26 +28,29 @@ func NewEvent(
 	userID *uuid.UUID,
 	typeEventObj TypeEvent,
 ) (Event, error) {
-	if email == "" {
-		return Event{}, fmt.Errorf("invalid email: %w", errs.ErrInvalidInput)
-	}
-	if confirmationURL == "" {
-		return Event{}, fmt.Errorf("invalid verificationURL: %w", errs.ErrInvalidInput)
+	if _, err := ParseType(typeEventObj.String()); err != nil {
+		return Event{}, fmt.Errorf("invalid typeEvent %q: %w", typeEventObj.String(), errs.ErrInvalidInput)
 	}
 	if token.Value() == "" {
 		return Event{}, fmt.Errorf("invalid token: %w", errs.ErrInvalidInput)
+	}
+	if userID != nil && *userID == uuid.Nil {
+		return Event{}, fmt.Errorf("invalid userID: %w", errs.ErrInvalidInput)
+	}
+	email, err := valid.NormalizeEmail(email)
+	if err != nil {
+		return Event{}, fmt.Errorf("invalid email: %w", err)
+	}
+	if confirmationURL == "" {
+		return Event{}, fmt.Errorf("invalid verificationURL: %w", errs.ErrInvalidInput)
 	}
 	if expiresAt.IsZero() {
 		return Event{}, fmt.Errorf("invalid expiresAt: %w", errs.ErrInvalidInput)
 	}
 
-	if typeEventObj.String() == "" {
-		return Event{}, fmt.Errorf("invalid typeEventObj: %w", errs.ErrInvalidInput)
-	}
-
 	verificationURL, err := url.Parse(confirmationURL)
 	if err != nil || verificationURL.Scheme == "" || verificationURL.Host == "" {
-		return Event{}, fmt.Errorf("invalid confirmation URL: %q : %w", confirmationURL, errs.ErrInvalidInput)
+		return Event{}, fmt.Errorf("invalid confirmation URL: %q: %w", confirmationURL, errs.ErrInvalidInput)
 	}
 	query := verificationURL.Query()
 	query.Set("token", token.Value())
@@ -85,11 +89,12 @@ func RestoreEvent(
 	if err != nil {
 		return Event{}, fmt.Errorf("invalid typeEvent %q: %w", typeEvent, err)
 	}
-	if userID == nil || *userID == uuid.Nil {
+	if userID != nil && *userID == uuid.Nil {
 		return Event{}, fmt.Errorf("invalid userID: %w", errs.ErrInvalidInput)
 	}
-	if email == "" {
-		return Event{}, fmt.Errorf("invalid email: %w", errs.ErrInvalidInput)
+	email, err = valid.NormalizeEmail(email)
+	if err != nil {
+		return Event{}, fmt.Errorf("invalid email: %w", err)
 	}
 	if verificationURL == "" {
 		return Event{}, fmt.Errorf("invalid verificationURL: %w", errs.ErrInvalidInput)
@@ -97,7 +102,7 @@ func RestoreEvent(
 
 	parsedVerificationURL, err := url.Parse(verificationURL)
 	if err != nil || parsedVerificationURL.Scheme == "" || parsedVerificationURL.Host == "" {
-		return Event{}, fmt.Errorf("invalid verification URL: %q", verificationURL)
+		return Event{}, fmt.Errorf("invalid verification URL: %q: %w", verificationURL, errs.ErrInvalidInput)
 	}
 	if expiresAt.IsZero() {
 		return Event{}, fmt.Errorf("invalid expiresAt: %w", errs.ErrInvalidInput)
@@ -119,12 +124,12 @@ func RestoreEvent(
 
 func (e *Event) BindUserID(userID uuid.UUID) error {
 	if userID == uuid.Nil {
-		return fmt.Errorf("userID is empty")
+		return fmt.Errorf("userID is empty %w", errs.ErrInvalidInput)
 	}
 
 	verificationURL, err := url.Parse(e.verificationURL)
 	if err != nil || verificationURL.Scheme == "" || verificationURL.Host == "" {
-		return fmt.Errorf("invalid verification URL: %q", e.verificationURL)
+		return fmt.Errorf("invalid verification URL: %q: %w", e.verificationURL, errs.ErrInvalidInput)
 	}
 
 	query := verificationURL.Query()
