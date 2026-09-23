@@ -6,6 +6,7 @@ import (
 
 	"github.com/Weit145/auth-startup/internal/domain"
 	"github.com/Weit145/auth-startup/internal/domain/event"
+	errs "github.com/Weit145/auth-startup/internal/lib/e"
 	"github.com/Weit145/auth-startup/internal/logger"
 	"github.com/google/uuid"
 )
@@ -95,6 +96,10 @@ func (s *Service) RegisterComplete(
 	sessionID uuid.UUID,
 	password string,
 ) (domain.User, domain.Tokens, error) {
+	if sessionID == uuid.Nil {
+		return domain.User{}, domain.Tokens{}, logger.WrapError(ctx, fmt.Errorf("invalid sessionID: %w", errs.ErrInvalidInput))
+	}
+
 	passwordHash, err := domain.HashPassword(password)
 	if err != nil {
 		return domain.User{}, domain.Tokens{}, logger.WrapError(ctx, fmt.Errorf("hash password: %w", err))
