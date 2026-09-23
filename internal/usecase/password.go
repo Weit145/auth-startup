@@ -8,6 +8,7 @@ import (
 	"github.com/Weit145/auth-startup/internal/domain"
 	"github.com/Weit145/auth-startup/internal/domain/event"
 	errs "github.com/Weit145/auth-startup/internal/lib/e"
+	"github.com/Weit145/auth-startup/internal/lib/valid"
 	"github.com/Weit145/auth-startup/internal/logger"
 	"github.com/google/uuid"
 )
@@ -43,15 +44,6 @@ func (s *Service) PasswordRequest(
 	if err != nil {
 		return logger.WrapError(ctx, fmt.Errorf("create event outbox: %w", err))
 	}
-
-	// err = s.notifications.AddEvent(ctx, event)
-	// if err != nil {
-	// 	err = s.repo.SetEventError(ctx, event.EventID())
-	// 	if err != nil {
-	// 		return logger.WrapError(ctx, fmt.Errorf("set event error: %w", err))
-	// 	}
-	// 	return logger.WrapError(ctx, fmt.Errorf("publish email: %w", err))
-	// }
 	return nil
 }
 
@@ -60,6 +52,9 @@ func (s *Service) PasswordConfirm(
 	userID uuid.UUID,
 	token, newPassword string,
 ) error {
+	if userID == uuid.Nil {
+		return logger.WrapError(ctx, fmt.Errorf("invalid userID: %w", errs.ErrInvalidInput))
+	}
 	tokenEmailDomain, err := domain.NewEmailVerificationToken(token, nil)
 	if err != nil {
 		return logger.WrapError(ctx, fmt.Errorf("create token domain: %w", err))
@@ -86,6 +81,18 @@ func (s *Service) ChangePassword(
 	userID uuid.UUID,
 	oldPassword, newPassword string,
 ) error {
+	if userID == uuid.Nil {
+		return logger.WrapError(ctx, fmt.Errorf("invalid userID: %w", errs.ErrInvalidInput))
+	}
+	newPassword, err := valid.NormalizePassword(newPassword)
+	if err != nil {
+		return logger.WrapError(ctx, fmt.Errorf("invalid new password: %w", err))
+	}
+	oldPassword, err = valid.NormalizePassword(oldPassword)
+	if err != nil {
+		return logger.WrapError(ctx, fmt.Errorf("invalid old password: %w", err))
+	}
+
 	newPasswordHash, err := domain.HashPassword(newPassword)
 	if err != nil {
 		return logger.WrapError(ctx, fmt.Errorf("hash password: %w", err))
