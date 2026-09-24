@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/Weit145/auth-startup/internal/domain"
+	errs "github.com/Weit145/auth-startup/internal/lib/e"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 )
@@ -69,6 +70,9 @@ func (p *Provider) CreateEmailVerificationToken() (domain.EmailVerificationToken
 }
 
 func (p *Provider) HashRefreshToken(token domain.RefreshToken) (domain.RefreshTokenHash, error) {
+	if token.Value() == "" {
+		return domain.RefreshTokenHash{}, fmt.Errorf("empty token: %w", errs.ErrInvalidInput)
+	}
 	h := hmac.New(sha256.New, []byte(p.cfg.RefreshSecret))
 	h.Write([]byte(token.Value()))
 
@@ -87,6 +91,9 @@ func (p *Provider) HashRefreshToken(token domain.RefreshToken) (domain.RefreshTo
 }
 
 func (p *Provider) HashShortSessionToken(token domain.ShortSessionToken) (domain.ShortSessionTokenHash, error) {
+	if token.Value() == "" {
+		return domain.ShortSessionTokenHash{}, fmt.Errorf("empty token: %w", errs.ErrInvalidInput)
+	}
 	h := hmac.New(sha256.New, []byte(p.cfg.RefreshSecret))
 	h.Write([]byte(token.Value()))
 
@@ -105,6 +112,9 @@ func (p *Provider) HashShortSessionToken(token domain.ShortSessionToken) (domain
 }
 
 func (p *Provider) HashEmailVerificationToken(token domain.EmailVerificationToken) (domain.EmailVerificationTokenHash, error) {
+	if token.Value() == "" {
+		return domain.EmailVerificationTokenHash{}, fmt.Errorf("empty token: %w", errs.ErrInvalidInput)
+	}
 	h := hmac.New(sha256.New, []byte(p.cfg.RefreshSecret))
 	h.Write([]byte(token.Value()))
 

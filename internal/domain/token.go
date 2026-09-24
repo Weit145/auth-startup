@@ -46,7 +46,7 @@ func NewAccessToken(
 	if err != nil {
 		return AccessToken{}, fmt.Errorf("invalid token: %w", err)
 	}
-	if expiresAt != nil && expiresAt.IsZero() {
+	if expiresAt != nil && (expiresAt.IsZero() || !expiresAt.After(time.Now())) {
 		return AccessToken{}, fmt.Errorf("invalid expiresAt: %w", errs.ErrInvalidInput)
 	}
 
@@ -70,7 +70,7 @@ func NewRefreshToken(
 	if err != nil {
 		return RefreshToken{}, fmt.Errorf("invalid token: %w", err)
 	}
-	if expiresAt != nil && expiresAt.IsZero() {
+	if expiresAt != nil && (expiresAt.IsZero() || !expiresAt.After(time.Now())) {
 		return RefreshToken{}, fmt.Errorf("invalid expiresAt: %w", errs.ErrInvalidInput)
 	}
 
@@ -94,7 +94,7 @@ func NewRefreshTokenHash(
 	if err != nil {
 		return RefreshTokenHash{}, fmt.Errorf("invalid token: %w", err)
 	}
-	if expiresAt != nil && expiresAt.IsZero() {
+	if expiresAt != nil && (expiresAt.IsZero() || !expiresAt.After(time.Now())) {
 		return RefreshTokenHash{}, fmt.Errorf("invalid expiresAt: %w", errs.ErrInvalidInput)
 	}
 
@@ -118,7 +118,7 @@ func NewEmailVerificationToken(
 	if err != nil {
 		return EmailVerificationToken{}, fmt.Errorf("invalid token: %w", err)
 	}
-	if expiresAt != nil && expiresAt.IsZero() {
+	if expiresAt != nil && (expiresAt.IsZero() || !expiresAt.After(time.Now())) {
 		return EmailVerificationToken{}, fmt.Errorf("invalid expiresAt: %w", errs.ErrInvalidInput)
 	}
 
@@ -142,7 +142,7 @@ func NewEmailVerificationTokenHash(
 	if err != nil {
 		return EmailVerificationTokenHash{}, fmt.Errorf("invalid token: %w", err)
 	}
-	if expiresAt != nil && expiresAt.IsZero() {
+	if expiresAt != nil && (expiresAt.IsZero() || !expiresAt.After(time.Now())) {
 		return EmailVerificationTokenHash{}, fmt.Errorf("invalid expiresAt: %w", errs.ErrInvalidInput)
 	}
 
@@ -167,7 +167,7 @@ func NewShortSessionToken(
 	if err != nil {
 		return ShortSessionToken{}, fmt.Errorf("invalid token: %w", err)
 	}
-	if expiresAt != nil && expiresAt.IsZero() {
+	if expiresAt != nil && (expiresAt.IsZero() || !expiresAt.After(time.Now())) {
 		return ShortSessionToken{}, fmt.Errorf("invalid expiresAt: %w", errs.ErrInvalidInput)
 	}
 
@@ -199,7 +199,7 @@ func NewShortSessionTokenHash(
 	if id == uuid.Nil {
 		return ShortSessionTokenHash{}, fmt.Errorf("invalid id: %w", errs.ErrInvalidInput)
 	}
-	if expiresAt != nil && expiresAt.IsZero() {
+	if expiresAt != nil && (expiresAt.IsZero() || !expiresAt.After(time.Now())) {
 		return ShortSessionTokenHash{}, fmt.Errorf("invalid expiresAt: %w", errs.ErrInvalidInput)
 	}
 	return ShortSessionTokenHash{

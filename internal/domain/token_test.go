@@ -12,6 +12,7 @@ import (
 
 func TestRefreshToken(t *testing.T) {
 	expiresAt := time.Now().Add(24 * time.Hour)
+	invalidTime := time.Now().Add(-time.Hour)
 	invalidExpiresAt := time.Time{}
 	cases := []struct {
 		name      string
@@ -29,15 +30,19 @@ func TestRefreshToken(t *testing.T) {
 			name:      "invalid token",
 			value:     "",
 			expiresAt: &expiresAt,
-
-			wantErr: errs.ErrInvalidInput,
+			wantErr:   errs.ErrInvalidInput,
 		},
 		{
 			name:      "invalid expiresAt",
 			value:     "valid-token",
 			expiresAt: &invalidExpiresAt,
-
-			wantErr: errs.ErrInvalidInput,
+			wantErr:   errs.ErrInvalidInput,
+		},
+		{
+			name:      "invalid expiresAt after now",
+			value:     "valid-token",
+			expiresAt: &invalidTime,
+			wantErr:   errs.ErrInvalidInput,
 		},
 	}
 
@@ -74,6 +79,7 @@ func TestRefreshToken(t *testing.T) {
 
 func TestAccessToken(t *testing.T) {
 	expiresAt := time.Now().Add(24 * time.Hour)
+	invalidTime := time.Now().Add(-time.Hour)
 	invalidExpiresAt := time.Time{}
 	cases := []struct {
 		name      string
@@ -98,6 +104,12 @@ func TestAccessToken(t *testing.T) {
 			name:      "invalid expiresAt",
 			value:     "valid-token",
 			expiresAt: &invalidExpiresAt,
+			wantErr:   errs.ErrInvalidInput,
+		},
+		{
+			name:      "invalid expiresAt after now",
+			value:     "valid-token",
+			expiresAt: &invalidTime,
 			wantErr:   errs.ErrInvalidInput,
 		},
 	}
@@ -123,6 +135,7 @@ func TestAccessToken(t *testing.T) {
 
 func TestEmailVerificationToken(t *testing.T) {
 	expiresAt := time.Now().Add(24 * time.Hour)
+	invalidTime := time.Now().Add(-time.Hour)
 	invalidExpiresAt := time.Time{}
 	cases := []struct {
 		name      string
@@ -147,6 +160,12 @@ func TestEmailVerificationToken(t *testing.T) {
 			name:      "invalid expiresAt",
 			value:     "valid-token",
 			expiresAt: &invalidExpiresAt,
+			wantErr:   errs.ErrInvalidInput,
+		},
+		{
+			name:      "invalid expiresAt after now",
+			value:     "valid-token",
+			expiresAt: &invalidTime,
 			wantErr:   errs.ErrInvalidInput,
 		},
 	}
@@ -182,6 +201,7 @@ func TestEmailVerificationToken(t *testing.T) {
 
 func TestShortSessionToken(t *testing.T) {
 	expiresAt := time.Now().Add(24 * time.Hour)
+	invalidTime := time.Now().Add(-time.Hour)
 	invalidExpiresAt := time.Time{}
 	cases := []struct {
 		name      string
@@ -208,6 +228,12 @@ func TestShortSessionToken(t *testing.T) {
 			expiresAt: &invalidExpiresAt,
 			wantErr:   errs.ErrInvalidInput,
 		},
+		{
+			name:      "invalid time",
+			value:     "valid-token",
+			expiresAt: &invalidTime,
+			wantErr:   errs.ErrInvalidInput,
+		},
 	}
 
 	for _, tc := range cases {
@@ -231,6 +257,7 @@ func TestShortSessionToken(t *testing.T) {
 
 func TestShortSessionTokenHash(t *testing.T) {
 	expiresAt := time.Now().Add(24 * time.Hour)
+	invalidTime := time.Now().Add(-time.Hour)
 	invalidExpiresAt := time.Time{}
 	sessionID := uuid.New()
 	cases := []struct {
@@ -267,6 +294,13 @@ func TestShortSessionTokenHash(t *testing.T) {
 			sessionID: uuid.Nil,
 			value:     "valid-token",
 			expiresAt: &expiresAt,
+			wantErr:   errs.ErrInvalidInput,
+		},
+		{
+			name:      "invalid time",
+			sessionID: sessionID,
+			value:     "valid-token",
+			expiresAt: &invalidTime,
 			wantErr:   errs.ErrInvalidInput,
 		},
 	}
