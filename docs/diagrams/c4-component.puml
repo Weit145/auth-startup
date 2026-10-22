@@ -1,0 +1,27 @@
+@startuml
+!pragma layout smetana
+title Auth — C4 Level 3: компоненты gRPC-сервиса
+left to right direction
+skinparam shadowing false
+
+rectangle "Gateway\n<<External Container>>" as gateway #EEEEEE
+package "Auth <<Container: Go>>" {
+  rectangle "gRPC v1 transport\n<<Component>>\nМетоды auth и health" as grpc #C7E7FF
+  rectangle "Use cases\n<<Component>>\nРегистрация, вход, refresh, пароль" as usecase #C7E7FF
+  rectangle "Token provider\n<<Component>>\nJWT и хеши одноразовых токенов" as tokens #C7E7FF
+  rectangle "Postgres repository\n<<Component>>\nТранзакции и SQL" as repo #C7E7FF
+  rectangle "Outbox worker\n<<Component>>\nПовторная публикация событий" as outbox #C7E7FF
+  rectangle "Kafka producer\n<<Component>>" as producer #C7E7FF
+}
+database "PostgreSQL\n<<External Container>>" as db #D5F5D5
+queue "Kafka: notifications\n<<External Container>>" as kafka #FBE5C4
+
+gateway --> grpc : gRPC / mTLS
+grpc --> usecase : Вызывает сценарии
+usecase --> tokens : Выпускает / проверяет токены
+usecase --> repo : Читает и изменяет данные
+repo --> db : SQL
+outbox --> repo : Забирает события и меняет статус
+outbox --> producer : Передаёт события
+producer --> kafka : Публикует
+@enduml

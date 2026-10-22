@@ -1,0 +1,33 @@
+@startuml
+!pragma layout smetana
+title Auth — CJM: путь регистрации внутри сервиса
+left to right direction
+skinparam shadowing false
+
+rectangle "1. Запрос\nЦель: начать регистрацию\nGateway → RegisterRequest\nСоздать pending user" as request #E8F3FF
+rectangle "2. Ожидание письма\nЦель: получить ссылку\nТокен + event_outbox\nKafka → notification" as email #FFF2D7
+rectangle "3. Подтверждение\nЦель: доказать доступ к email\nConfirmEmail(token, userID)\nПогасить токен" as confirm #FFF2D7
+rectangle "4. Пароль\nЦель: завершить регистрацию\nRegisterComplete(session, password)\nСоздать refresh session" as complete #E3F5E8
+rectangle "5. Доступ\nЦель: вернуться в аккаунт\nLogin / Refresh / Logout\nУправлять сессией" as access #E3F5E8
+
+request --> email
+email --> confirm
+confirm --> complete
+complete --> access
+
+note bottom of request
+  Результат: users, email_verification_tokens
+  и event_outbox созданы в одной транзакции.
+end note
+note bottom of email
+  Сложность: задержка или истечение срока письма.
+  Повторный запрос: RepeatEmail.
+end note
+note bottom of confirm
+  Результат: registration_sessions и временный JWT.
+  Использование ограничено завершением регистрации.
+end note
+note bottom of complete
+  Результат: пароль, access JWT и refresh token.
+end note
+@enduml

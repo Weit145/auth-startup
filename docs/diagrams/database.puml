@@ -1,0 +1,84 @@
+@startuml
+!pragma layout smetana
+title Auth — PostgreSQL: фактическая схема после миграции 00005
+hide circle
+skinparam shadowing false
+
+entity "users" as users {
+  * id : UUID <<PK>>
+  --
+  * email : TEXT <<UNIQUE>>
+  password_hash : TEXT <<NULLABLE>>
+  * role : TEXT = 'user' [user|admin]
+  email_verified_at : TIMESTAMPTZ <<NULLABLE>>
+  * created_at : TIMESTAMPTZ
+}
+entity "refresh_sessions" as refresh {
+  * id : UUID <<PK>>
+  --
+  * user_id : UUID <<FK>>
+  * refresh_token_hash : TEXT <<UNIQUE>>
+  * expires_at : TIMESTAMPTZ
+  revoked_at : TIMESTAMPTZ <<NULLABLE>>
+  * created_at : TIMESTAMPTZ
+}
+entity "email_verification_tokens" as email {
+  * id : UUID <<PK>>
+  --
+  * user_id : UUID <<FK>>
+  * token_hash : TEXT <<UNIQUE>>
+  * expires_at : TIMESTAMPTZ
+  used_at : TIMESTAMPTZ <<NULLABLE>>
+  * created_at : TIMESTAMPTZ
+}
+entity "password_reset_tokens" as reset {
+  * id : UUID <<PK>>
+  --
+  * user_id : UUID <<FK>>
+  * token_hash : TEXT <<UNIQUE>>
+  * expires_at : TIMESTAMPTZ
+  used_at : TIMESTAMPTZ <<NULLABLE>>
+  * created_at : TIMESTAMPTZ
+}
+entity "registration_sessions" as registration {
+  * id : UUID <<PK>>
+  --
+  * user_id : UUID <<FK>>
+  * token_hash : TEXT <<UNIQUE>>
+  * expires_at : TIMESTAMPTZ
+  used_at : TIMESTAMPTZ <<NULLABLE>>
+  * created_at : TIMESTAMPTZ
+}
+entity "event_outbox" as outbox {
+  * id : SERIAL <<PK>>
+  --
+  * event_id : UUID <<UNIQUE>>
+  * type_event : VARCHAR(50)
+  * user_id : UUID
+  * email : VARCHAR(255)
+  verification_url : VARCHAR(255) <<NULLABLE>>
+  * expires_at : TIMESTAMP
+  * created_at : TIMESTAMP
+  * status : VARCHAR(50) = 'pending'
+  locked_at : TIMESTAMPTZ <<NULLABLE>>
+  * attempts : INTEGER = 0
+  * next_attempt_at : TIMESTAMPTZ
+  last_error : TEXT <<NULLABLE>>
+}
+
+users ||--o{ refresh : user_id / CASCADE
+users ||--o{ email : user_id / CASCADE
+users ||--o{ reset : user_id / CASCADE
+users ||--o{ registration : user_id / CASCADE
+users ..> outbox : user_id; FK не задан
+
+note bottom of registration
+  Частичный UNIQUE (user_id) WHERE used_at IS NULL.
+  Поле name удалено миграцией 00003.
+end note
+note bottom of outbox
+  Индекс обработки: status, next_attempt_at,
+  locked_at, created_at. Статусы: pending,
+  dispatching, published, error.
+end note
+@enduml
